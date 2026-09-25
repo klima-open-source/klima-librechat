@@ -28,3 +28,6 @@ services:
   # with it, or compose refuses to start the stack.
   client:
     depends_on: !override ['api']
+    ports: !override
+      - 800:80
+      - 4430:443
