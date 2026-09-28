@@ -15,6 +15,14 @@ interface LoginLocationState {
   redirect_to?: string;
 }
 
+/**
+ * How long the redirect screen waits before offering the manual provider link. The browser
+ * normally leaves well before this; the link exists only for when the navigation does not
+ * happen. Showing it immediately lets an impatient click fire a second `/oauth/openid`
+ * request, which trips the login rate limiter and fails the sign-in.
+ */
+const MANUAL_REDIRECT_FALLBACK_MS = 6000;
+
 /** Error codes the server appends to the login redirect when an OAuth navigation is rejected. */
 const oauthErrorKeys: Record<string, TranslationKeys> = {
   [ErrorTypes.AUTH_FAILED]: 'com_auth_error_oauth_failed',
@@ -84,6 +92,16 @@ function Login() {
     }
   }, [shouldAutoRedirect, startupConfig]);
 
+  const [showManualRedirect, setShowManualRedirect] = useState(false);
+
+  useEffect(() => {
+    if (!shouldAutoRedirect) {
+      return;
+    }
+    const timer = setTimeout(() => setShowManualRedirect(true), MANUAL_REDIRECT_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [shouldAutoRedirect]);
+
   if (shouldAutoRedirect) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -93,7 +111,7 @@ function Login() {
         <div className="mt-4">
           <SocialButton
             key="openid"
-            enabled={startupConfig.openidLoginEnabled}
+            enabled={startupConfig.openidLoginEnabled && showManualRedirect}
             serverDomain={startupConfig.serverDomain}
             oauthPath="openid"
             Icon={() =>
