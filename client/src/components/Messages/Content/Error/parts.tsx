@@ -355,9 +355,7 @@ export function ErrorAction({
 
 export const formatNumber = (value: number): string => new Intl.NumberFormat().format(value);
 
-/** Token credits are a float balance; two decimals, matching the balance settings row. */
-export const formatCredits = (value: number): string =>
-  new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
+export { formatCreditsAsCurrency as formatCredits } from '~/utils/credits';
 
 const isoTimestamp = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 

@@ -39,6 +39,27 @@ function loadSpecs() {
 }
 
 const table = loadPriceTable();
+
+/** `--all [substring]` lists every priced model instead of checking the configured specs. */
+if (process.argv.includes('--all')) {
+  const filter = process.argv[process.argv.indexOf('--all') + 1]?.toLowerCase();
+  const rows = [...table.entries()]
+    .filter(([model]) => !filter || model.toLowerCase().includes(filter))
+    .sort((a, b) => a[1].prompt - b[1].prompt || a[0].localeCompare(b[0]));
+
+  const width = Math.max(...rows.map(([model]) => model.length), 5);
+  console.log(`\n${rows.length} priced model(s)${filter ? ` matching "${filter}"` : ''}, USD per 1M tokens\n`);
+  console.log(`  ${'model'.padEnd(width)}  ${'input'.padStart(8)}  ${'output'.padStart(8)}`);
+  console.log(`  ${'-'.repeat(width)}  ${'-'.repeat(8)}  ${'-'.repeat(8)}`);
+  for (const [model, rate] of rows) {
+    console.log(
+      `  ${model.padEnd(width)}  ${`$${rate.prompt}`.padStart(8)}  ${`$${rate.completion}`.padStart(8)}`,
+    );
+  }
+  console.log();
+  process.exit(0);
+}
+
 const specs = loadSpecs();
 const DEFAULT_RATE = 6;
 

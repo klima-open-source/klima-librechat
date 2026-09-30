@@ -1,6 +1,7 @@
 import { useState, memo, useRef } from 'react';
 import { useSetRecoilState } from 'recoil';
 import * as Menu from '@ariakit/react/menu';
+import { useTranslation } from 'react-i18next';
 import { GearIcon, DropdownMenuSeparator, Avatar } from '@librechat/client';
 import {
   Archive,
@@ -14,8 +15,8 @@ import {
 } from 'lucide-react';
 import { ArchivedChatsModal } from '~/components/Nav/SettingsTabs/General/ArchivedChatsModal';
 import { useGetStartupConfig, useGetUserBalance } from '~/data-provider';
+import { formatCreditsAsCurrency, openInNewTab } from '~/utils';
 import { useAuthContext } from '~/hooks/AuthContext';
-import { openInNewTab } from '~/utils';
 import { useLocalize } from '~/hooks';
 import Settings from './Settings';
 import store from '~/store';
@@ -93,6 +94,7 @@ function HelpSubmenu({
 
 function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
   const localize = useLocalize();
+  const { i18n } = useTranslation();
   const { user, isAuthenticated, logout } = useAuthContext();
   const { data: startupConfig } = useGetStartupConfig();
   const balanceQuery = useGetUserBalance({
@@ -147,7 +149,7 @@ function AccountSettings({ collapsed = false }: { collapsed?: boolean }) {
           <>
             <div className="text-token-text-secondary ml-3 mr-2 py-2 text-sm" role="note">
               {localize('com_nav_balance')}:{' '}
-              {new Intl.NumberFormat().format(Math.round(balanceQuery.data.tokenCredits))}
+              {formatCreditsAsCurrency(balanceQuery.data.tokenCredits, i18n.resolvedLanguage)}
             </div>
             <DropdownMenuSeparator />
           </>

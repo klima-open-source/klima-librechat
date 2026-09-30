@@ -1,5 +1,7 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Label, InfoHoverCard, ESide } from '@librechat/client';
+import { formatCreditsAsCurrency } from '~/utils';
 import { useLocalize } from '~/hooks';
 
 interface TokenCreditsItemProps {
@@ -8,6 +10,7 @@ interface TokenCreditsItemProps {
 
 const TokenCreditsItem: React.FC<TokenCreditsItemProps> = ({ tokenCredits }) => {
   const localize = useLocalize();
+  const { i18n } = useTranslation();
 
   return (
     <div className="flex items-center justify-between">
@@ -17,9 +20,8 @@ const TokenCreditsItem: React.FC<TokenCreditsItemProps> = ({ tokenCredits }) => 
         <InfoHoverCard side={ESide.Bottom} text={localize('com_nav_info_balance')} />
       </div>
 
-      {/* Right Section: tokenCredits Value */}
       <span className="text-sm font-medium text-text-primary" role="note">
-        {tokenCredits !== undefined ? tokenCredits.toFixed(2) : '0.00'}
+        {formatCreditsAsCurrency(tokenCredits ?? 0, i18n.resolvedLanguage)}
       </span>
     </div>
   );
