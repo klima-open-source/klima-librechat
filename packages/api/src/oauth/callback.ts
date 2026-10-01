@@ -1,3 +1,4 @@
+import { ErrorTypes } from 'librechat-data-provider';
 import type { NextFunction, Response } from 'express';
 import {
   buildOAuthFailureLog,
@@ -5,6 +6,7 @@ import {
   type OAuthFailureLog,
   type OAuthFailureRequest,
 } from './failure';
+import { isRequiredRoleFailure } from '~/auth/requiredRole';
 
 type LoginFunction = (
   user: unknown,
@@ -61,11 +63,23 @@ export type OpenIDCallbackAuthenticatorOptions = AuthFailureRedirectOptions & {
   passport: PassportLike;
 };
 
+/**
+ * Passport reports a declined sign-in through `info` rather than an error, so the gate's reason
+ * is only available as a message here. A missing required role is the one reason the person can
+ * act on, so it keeps its own code; everything else stays the generic failure.
+ */
+function resolveAuthFailureError(info: unknown, authFailedError: string): string {
+  const message = (info as { message?: unknown } | undefined)?.message;
+  return isRequiredRoleFailure(message) ? ErrorTypes.AUTH_NO_REQUIRED_ROLE : authFailedError;
+}
+
 export function redirectToAuthFailure(
   res: Response,
   { clientDomain, authFailedError }: AuthFailureRedirectOptions,
+  info?: unknown,
 ): void {
-  res.redirect(`${clientDomain}/login?redirect=false&error=${authFailedError}`);
+  const error = resolveAuthFailureError(info, authFailedError);
+  res.redirect(`${clientDomain}/login?redirect=false&error=${error}`);
 }
 
 export function logOpenIDCallbackFailure({
@@ -119,7 +133,7 @@ export function createOpenIDCallbackAuthenticator({
 
         if (!user) {
           logOpenIDCallbackFailure({ logger, req, err, info });
-          return redirectToAuthFailure(res, { clientDomain, authFailedError });
+          return redirectToAuthFailure(res, { clientDomain, authFailedError }, info);
         }
 
         if (typeof req.logIn !== 'function') {

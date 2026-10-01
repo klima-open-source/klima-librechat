@@ -10,6 +10,7 @@ export * from './password';
 export * from './invite';
 export * from './codeapi';
 export * from './openidRoleSync';
+export * from './requiredRole';
 export * from './userDocCache';
 export * from './reuse';
 export * from './openid/index';

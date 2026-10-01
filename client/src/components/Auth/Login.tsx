@@ -28,6 +28,7 @@ const oauthErrorKeys: Record<string, TranslationKeys> = {
   [ErrorTypes.AUTH_FAILED]: 'com_auth_error_oauth_failed',
   [ErrorTypes.AUTH_RATE_LIMITED]: 'com_auth_error_login_rl',
   [ErrorTypes.AUTH_BANNED]: 'com_auth_error_login_ban',
+  [ErrorTypes.AUTH_NO_REQUIRED_ROLE]: 'com_auth_error_no_required_role',
 };
 
 function Login() {

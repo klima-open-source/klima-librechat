@@ -3984,6 +3984,11 @@ export enum ErrorTypes {
    */
   AUTH_CROSS_ORIGIN = 'auth_cross_origin',
   /**
+   * Authentication rejected because the identity provider carried none of the roles
+   * required to sign in, including the case where the configured claim is absent
+   */
+  AUTH_NO_REQUIRED_ROLE = 'auth_no_required_role',
+  /**
    * Model refused to respond (content policy violation)
    */
   REFUSAL = 'refusal',

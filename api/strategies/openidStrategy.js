@@ -24,6 +24,8 @@ const {
   getOpenIdRoleSyncOptions,
   getOpenIdRolesForOpenIdSync,
   getLibreChatRolesForOpenIdSync,
+  buildRequiredRoleError,
+  isRequiredRoleFailure,
   DEFAULT_OAUTH_TOKEN_TTL_SECONDS,
 } = require('@librechat/api');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
@@ -645,21 +647,13 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
       logger.error(
         `[openidStrategy] Key '${requiredRoleParameterPath}' not found in ${requiredRoleTokenKind} token!`,
       );
-      const rolesList =
-        requiredRoles.length === 1
-          ? `"${requiredRoles[0]}"`
-          : `one of: ${requiredRoles.map((r) => `"${r}"`).join(', ')}`;
-      throw new Error(`You must have ${rolesList} role to log in.`);
+      throw buildRequiredRoleError(requiredRoles);
     }
 
     const roleValues = Array.isArray(roles) ? roles : roles.split(/[\s,]+/).filter(Boolean);
 
     if (!requiredRoles.some((role) => roleValues.includes(role))) {
-      const rolesList =
-        requiredRoles.length === 1
-          ? `"${requiredRoles[0]}"`
-          : `one of: ${requiredRoles.map((r) => `"${r}"`).join(', ')}`;
-      throw new Error(`You must have ${rolesList} role to log in.`);
+      throw buildRequiredRoleError(requiredRoles);
     }
   }
 
@@ -853,7 +847,7 @@ function createOpenIDCallback(existingUsersOnly) {
       if (err.message === ErrorTypes.AUTH_FAILED) {
         return done(null, false, { message: err.message });
       }
-      if (err.message && err.message.includes('role to log in')) {
+      if (isRequiredRoleFailure(err.message)) {
         return done(null, false, { message: err.message });
       }
       logger.error('[openidStrategy] login failed', err);
