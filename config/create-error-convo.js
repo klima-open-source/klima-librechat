@@ -242,6 +242,11 @@ const ERROR_CASES = [
     reason: 'not_a_known_reason',
   }),
   payloadCase('Compaction produced no summary', { type: ErrorTypes.COMPACTION_FAILED }),
+  {
+    label: 'Conversation attachments exceed a configured limit',
+    text: `This conversation has reached its attachment limit. Start a new conversation to keep working with documents.\n${JSON.stringify({ type: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED, limitType: 'count' })}`,
+    covers: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED,
+  },
 
   /* ---------- authentication ---------- */
   payloadCase('Authentication failed', {

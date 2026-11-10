@@ -3488,10 +3488,13 @@ describe('AgentClient - startup telemetry', () => {
       expect.arrayContaining([
         expect.objectContaining({
           type: ContentTypes.ERROR,
-          [ContentTypes.ERROR]: expect.stringContaining('total attachment size'),
+          [ContentTypes.ERROR]: expect.stringContaining(
+            JSON.stringify({ type: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED, limitType: 'bytes' }),
+          ),
         }),
       ]),
     );
+    expect(JSON.stringify(client.contentParts)).not.toContain('2000000');
   });
 
   it('cancels current attachment persistence when its storage object is unavailable', async () => {

@@ -1,3 +1,4 @@
+import { ErrorTypes } from 'librechat-data-provider';
 import type {
   AssertResumeRuntimeContentAllowedInput,
   ResumeContentProtectionDependencies,
@@ -6,9 +7,14 @@ import type {
 import {
   assertAgentAttachmentLimits,
   AgentAttachmentLimitError,
+  AgentAttachmentPolicyError,
   isModelBoundAttachmentFile,
 } from '../attachments';
-import { assertResumeContentAllowed, assertResumeRuntimeContentAllowed } from './protection';
+import {
+  getUserFacingResumeError,
+  assertResumeContentAllowed,
+  assertResumeRuntimeContentAllowed,
+} from './protection';
 
 const user = {
   id: 'user-1',
@@ -716,5 +722,25 @@ describe('assertResumeRuntimeContentAllowed', () => {
     expect(dependencies.getActions).not.toHaveBeenCalled();
     expect(dependencies.getUserMemories).not.toHaveBeenCalled();
     expect(dependencies.decryptMetadata).not.toHaveBeenCalled();
+  });
+});
+
+describe('getUserFacingResumeError', () => {
+  it('types an attachment limit error so the client can localize it', () => {
+    const text = getUserFacingResumeError(
+      new AgentAttachmentLimitError('count', 11, 10),
+      undefined,
+    );
+
+    expect(JSON.parse(text.slice(text.indexOf('{')))).toEqual({
+      type: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED,
+      limitType: 'count',
+    });
+  });
+
+  it('keeps the attachment policy error message as it is', () => {
+    const error = new AgentAttachmentPolicyError();
+
+    expect(getUserFacingResumeError(error, undefined)).toBe(error.message);
   });
 });

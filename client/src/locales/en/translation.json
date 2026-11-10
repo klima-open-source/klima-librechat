@@ -505,6 +505,7 @@
   "com_endpoint_use_url_context": "URL Context",
   "com_endpoint_verbosity": "Verbosity",
   "com_error_agent_contact_email": "Email {{0}}",
+  "com_error_attachment_limit_exceeded": "This conversation has reached its attachment limit. Files from earlier messages are sent again with every message, so they count too. Start a new conversation to keep working with documents.",
   "com_error_auth_banned": "Access is blocked for this account or address. Ask an administrator to review it.",
   "com_error_auth_failed": "Your session could not be verified. Sign in again, then resend the message.",
   "com_error_auth_rate_limited": "Too many attempts in a short time. Wait a moment and try again.",

@@ -221,6 +221,36 @@ describe('Error — reader-facing provider and fallback copy', () => {
     },
   );
 
+  it.each(['count', 'bytes', 'extracted_text'])(
+    'localizes an exceeded %s attachment limit instead of headlining the provider',
+    (limitType) => {
+      const prose =
+        'This conversation has reached its attachment limit. Start a new conversation to keep working with documents.';
+      renderError(
+        `${prose}\n${JSON.stringify({ type: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED, limitType })}`,
+        providerMessage,
+      );
+
+      expect(screen.getByText(catalog.com_error_attachment_limit_exceeded)).toBeInTheDocument();
+      expect(screen.queryByText(prose)).not.toBeInTheDocument();
+      expect(screen.queryByText(/could not complete this request/i)).not.toBeInTheDocument();
+      expectReadable();
+    },
+  );
+
+  it('localizes an attachment limit rejected while the agent was initializing', () => {
+    renderError({
+      status: 413,
+      code: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED,
+      limitType: 'bytes',
+      error: 'This turn exceeds the configured total attachment size limit (2 > 1).',
+    });
+
+    expect(screen.getByText(catalog.com_error_attachment_limit_exceeded)).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('2 > 1');
+    expectReadable();
+  });
+
   it('keeps fallback prose when an older client cannot recognize the server error type', () => {
     const prose =
       'The model provider closed the connection before the response finished. Try again.';

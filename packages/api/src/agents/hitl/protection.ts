@@ -57,6 +57,7 @@ import { agentHasInlineMemoryTools, getMemoryAgentId } from '../memory';
 import { LIBRECHAT_CHECKPOINT_NAMESPACE_KEY } from '../checkpointer';
 import { AttachmentObjectNotFoundError } from '~/files/encode/utils';
 import { ASK_USER_QUESTION_TOOL_NAME } from './askUserQuestionTool';
+import { resolveAgentAttachmentLimitError } from '../attachments';
 import { ContentFilterError } from '~/middleware/contentFilter';
 import { applyCheckpointDelivery } from '../files/delivery';
 import { hasActiveFilePolicy } from '~/protection/files';
@@ -1145,6 +1146,10 @@ export function getUserFacingResumeError(
   error: { readonly message?: string } | null | undefined,
   appConfig: ResumeProtectionConfig | undefined,
 ): string {
+  const attachmentLimitError = resolveAgentAttachmentLimitError(error);
+  if (attachmentLimitError != null) {
+    return attachmentLimitError;
+  }
   if (hasResumeContentProtection(appConfig)) {
     return GENERIC_RESUME_ERROR;
   }

@@ -140,6 +140,7 @@ const {
   isModelBoundAttachmentFile,
   isAgentAttachmentLimitError,
   isAttachmentObjectNotFoundError,
+  resolveAgentAttachmentLimitError,
   buildAgentScopedContext,
   buildAgentScopedAttachmentMap,
   resolveScopedTurnAttachments,
@@ -5143,7 +5144,7 @@ class AgentClient extends BaseClient {
         this.modelBoundCurrentFiles = [];
         this.contentParts.push({
           type: ContentTypes.ERROR,
-          [ContentTypes.ERROR]: err.message,
+          [ContentTypes.ERROR]: resolveAgentAttachmentLimitError(err) ?? err.message,
         });
       } else if (isAgentRunCancellation(err, abortController.signal)) {
         logger.debug(

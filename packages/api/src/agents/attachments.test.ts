@@ -1,5 +1,5 @@
 import { logger } from '@librechat/data-schemas';
-import { EModelEndpoint, FileContext, FileSources } from 'librechat-data-provider';
+import { ErrorTypes, EModelEndpoint, FileContext, FileSources } from 'librechat-data-provider';
 import type { IMongoFile } from '@librechat/data-schemas';
 import type { ServerRequest } from '~/types';
 
@@ -19,6 +19,8 @@ import {
   buildAgentContextAttachmentsByAgentId,
   isModelBoundAttachmentFile,
   isToolOwnedAttachment,
+  resolveAgentAttachmentLimitError,
+  getAgentAttachmentLimitErrorDetails,
 } from './attachments';
 import { applyTurnDelivery, resolveTurnDeliveryRouting } from './files/delivery';
 
@@ -781,5 +783,32 @@ describe('files that belong to a tool', () => {
         countRepeatedExtractedText: true,
       }),
     ).not.toThrow();
+  });
+});
+
+describe('attachment limit error payloads', () => {
+  const parsePayload = (text: string | undefined) =>
+    JSON.parse(text?.slice(text.indexOf('{')) ?? 'null') as Record<string, unknown>;
+
+  it.each(['count', 'bytes', 'extracted_text'] as const)(
+    'types a %s limit error without exposing its numbers',
+    (limitType) => {
+      const text = resolveAgentAttachmentLimitError(
+        new AgentAttachmentLimitError(limitType, 11, 10),
+      );
+
+      expect(parsePayload(text)).toEqual({ type: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED, limitType });
+      expect(text).not.toContain('11');
+      expect(
+        getAgentAttachmentLimitErrorDetails(new AgentAttachmentLimitError(limitType, 11, 10)),
+      ).toEqual({ code: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED, limitType });
+    },
+  );
+
+  it('leaves the attachment policy error and unrelated errors untyped', () => {
+    for (const error of [new AgentAttachmentPolicyError(), new Error('boom'), undefined]) {
+      expect(resolveAgentAttachmentLimitError(error)).toBeUndefined();
+      expect(getAgentAttachmentLimitErrorDetails(error)).toEqual({});
+    }
   });
 });

@@ -4034,6 +4034,11 @@ export enum ErrorTypes {
    * A manual compaction whose summarizer produced nothing; history is untouched
    */
   COMPACTION_FAILED = 'compaction_failed',
+  /**
+   * The turn's attachments, including those re-sent from earlier messages, exceed a configured
+   * count, total size or extracted-text limit; `limitType` names which one
+   */
+  ATTACHMENT_LIMIT_EXCEEDED = 'attachment_limit_exceeded',
 }
 
 /**

@@ -32,6 +32,7 @@ export const errorCopy: Record<string, TranslationKeys> = {
   [ErrorTypes.MODEL_STREAM_CLOSED]: 'com_error_model_stream_closed',
   [ErrorTypes.MODEL_STREAM_STALLED]: 'com_error_model_stream_stalled',
   [ErrorTypes.COMPACTION_FAILED]: 'com_error_compaction_failed',
+  [ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED]: 'com_error_attachment_limit_exceeded',
   [ErrorTypes.AUTH_FAILED]: 'com_error_auth_failed',
   [ErrorTypes.AUTH_RATE_LIMITED]: 'com_error_auth_rate_limited',
   [ErrorTypes.AUTH_BANNED]: 'com_error_auth_banned',

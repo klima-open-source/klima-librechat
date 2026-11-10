@@ -287,6 +287,10 @@ jest.mock('@librechat/api', () => ({
   encodeAndFormatImages: jest.requireActual('@librechat/api').encodeAndFormatImages,
   getCodeWorkspaceSelectionErrorDetails:
     jest.requireActual('@librechat/api').getCodeWorkspaceSelectionErrorDetails,
+  getAgentAttachmentLimitErrorDetails:
+    jest.requireActual('@librechat/api').getAgentAttachmentLimitErrorDetails,
+  resolveAgentAttachmentLimitError:
+    jest.requireActual('@librechat/api').resolveAgentAttachmentLimitError,
   shouldPersistCodeWorkspaceInitializationError:
     jest.requireActual('@librechat/api').shouldPersistCodeWorkspaceInitializationError,
   resolvePersistableCodeEnvironmentDecision: (...args) =>

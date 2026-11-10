@@ -47,6 +47,8 @@ const {
   resolveAgentTurnExecutionPlan,
   logAgentMemorySnapshot,
   getCodeWorkspaceSelectionErrorDetails,
+  getAgentAttachmentLimitErrorDetails,
+  resolveAgentAttachmentLimitError,
   getAgentErrorMetadata,
   shouldPersistCodeWorkspaceInitializationError,
   resolvePersistableCodeEnvironmentDecision,
@@ -122,6 +124,7 @@ function getInitializationFailure(error) {
   return {
     ...metadata,
     ...getCodeWorkspaceSelectionErrorDetails(error),
+    ...getAgentAttachmentLimitErrorDetails(error),
     error: error?.message || 'Failed to start generation',
   };
 }
@@ -3272,7 +3275,8 @@ const ResumableAgentController = async (req, res, next, initializeClient, addTit
           // abortJob already handled emitDone and completeJob
         } else {
           logger.error(`[ResumableAgentController] Generation error for ${streamId}:`, error);
-          const generationError = error.message || 'Generation failed';
+          const generationError =
+            resolveAgentAttachmentLimitError(error) ?? (error.message || 'Generation failed');
           try {
             // completeJob first wins running -> error and atomically parks
             // steers, then publishes. A competing abort/pause emits nothing.

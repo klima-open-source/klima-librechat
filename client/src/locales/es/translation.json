@@ -339,6 +339,7 @@
   "com_endpoint_use_active_assistant": "Utilizar asistente activo",
   "com_endpoint_use_search_grounding": "Fundamentación con Búsqueda de Google",
   "com_endpoint_verbosity": "Nivel de detalle",
+  "com_error_attachment_limit_exceeded": "Esta conversación alcanzó el límite de archivos adjuntos. Los archivos de mensajes anteriores se envían de nuevo con cada mensaje, así que también cuentan. Inicia una nueva conversación para seguir trabajando con documentos.",
   "com_error_endpoint_models_not_loaded": "Los modelos para {{0}} no pudieron cargarse. Por favor actualiza la página e inténtalo de nuevo.",
   "com_error_expired_user_key": "La clave proporcionada para {{0}} expiró en {{1}}. Por favor, proporcione una clave nueva e inténtelo de nuevo.",
   "com_error_files_dupe": "Se detectó un archivo duplicado.",

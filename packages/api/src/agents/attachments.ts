@@ -1,5 +1,6 @@
 import { logger } from '@librechat/data-schemas';
 import {
+  ErrorTypes,
   FileContext,
   FileSources,
   EModelEndpoint,
@@ -234,6 +235,35 @@ export function isAgentAttachmentLimitError(
   error: unknown,
 ): error is AgentAttachmentLimitError | AgentAttachmentPolicyError {
   return error instanceof AgentAttachmentLimitError || error instanceof AgentAttachmentPolicyError;
+}
+
+/** Safe prose for a client bundle that cannot localize `ATTACHMENT_LIMIT_EXCEEDED` yet. */
+const ATTACHMENT_LIMIT_FALLBACK =
+  'This conversation has reached its attachment limit. Start a new conversation to keep working with documents.';
+
+/**
+ * Typed error text the client localizes for an exceeded attachment limit, or `undefined` for any
+ * other error. The policy error shares the server-side code but keeps its own message.
+ */
+export function resolveAgentAttachmentLimitError(error: unknown): string | undefined {
+  if (!(error instanceof AgentAttachmentLimitError)) {
+    return undefined;
+  }
+  return `${ATTACHMENT_LIMIT_FALLBACK}\n${JSON.stringify({
+    type: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED,
+    limitType: error.limitType,
+  })}`;
+}
+
+/** Client-facing code for an initialization failure caused by an exceeded attachment limit. */
+export function getAgentAttachmentLimitErrorDetails(error: unknown): {
+  code?: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED;
+  limitType?: AgentAttachmentLimit;
+} {
+  if (!(error instanceof AgentAttachmentLimitError)) {
+    return {};
+  }
+  return { code: ErrorTypes.ATTACHMENT_LIMIT_EXCEEDED, limitType: error.limitType };
 }
 
 export function collectAgentAttachmentStats(
