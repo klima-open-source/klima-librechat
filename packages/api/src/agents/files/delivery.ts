@@ -107,6 +107,7 @@ export function resolveScopedTurnAttachments<T extends TurnDeliveryFile & { file
   historicalFiles,
   requestAttachments,
   sharedRunAttachmentIds,
+  excludedHistoricalFileIds,
   attachmentsByAgentId,
 }: {
   agents: readonly {
@@ -123,13 +124,17 @@ export function resolveScopedTurnAttachments<T extends TurnDeliveryFile & { file
   historicalFiles?: ReadonlyMap<string, T>;
   requestAttachments: readonly T[];
   sharedRunAttachmentIds: ReadonlySet<string>;
+  /** Historical files left out of this turn to fit its attachment limits. */
+  excludedHistoricalFileIds?: ReadonlySet<string>;
   attachmentsByAgentId?: Map<string, T[]> | Record<string, T[]>;
 }): Map<string, T[]> {
   const candidates = new Map<string, T>();
   for (const fileId of collectModelBoundHistoricalFileIdState(resendFiles === false ? [] : messages)
     .fileIds) {
     const file = historicalFiles?.get(fileId);
-    if (file && !sharedRunAttachmentIds.has(fileId)) candidates.set(fileId, file);
+    if (file && !sharedRunAttachmentIds.has(fileId) && !excludedHistoricalFileIds?.has(fileId)) {
+      candidates.set(fileId, file);
+    }
   }
   for (const file of requestAttachments) {
     if (!sharedRunAttachmentIds.has(file.file_id)) candidates.set(file.file_id, file);

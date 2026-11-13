@@ -137,6 +137,8 @@ const {
   createAgentMemoryCallback,
   assertAgentAttachmentLimits,
   assertAgentAttachmentTopology,
+  selectHistoricalAttachmentsWithinLimits,
+  buildDroppedHistoricalAttachmentsNote,
   isModelBoundAttachmentFile,
   isAgentAttachmentLimitError,
   isAttachmentObjectNotFoundError,
@@ -489,44 +491,34 @@ class AgentClient extends BaseClient {
     }
   }
 
+  /** Admits the newest historical files that fit this turn's attachment limits; current
+   * request and agent-scoped files keep their strict limits. */
   async assertHistoricalAttachmentLimits(historicalAttachments) {
     const currentAttachments = this.options.attachments ? await this.options.attachments : [];
-    const compatibleHistoricalAttachments =
-      this.getModelBoundAttachmentsForEndpoint(historicalAttachments);
-    const compatibleCurrentAttachments =
-      this.getModelBoundAttachmentsForEndpoint(currentAttachments);
-    const sharedAttachments = [...compatibleHistoricalAttachments, ...compatibleCurrentAttachments];
-    const sharedAttachmentIds = collectFileIds(sharedAttachments);
     const agents = collectReachableAgents([
       this.options.agent,
       ...(this.agentConfigs?.values() ?? []),
-    ]);
-    const scopedAttachmentMap = this.getFilteredScopedAttachmentMap(
-      sharedAttachmentIds,
-      this.options.agentContextAttachmentsByAgentId,
-      agents,
-    );
-    const endpointsByAgentId = new Map(
-      agents
-        .filter((agent) => agent?.id)
-        .map((agent) => [
+    ]).filter((agent) => agent?.id);
+    const { admitted, dropped } = selectHistoricalAttachmentsWithinLimits({
+      historicalAttachments: this.getModelBoundAttachmentsForEndpoint(historicalAttachments),
+      currentAttachments: this.getModelBoundAttachmentsForEndpoint(currentAttachments),
+      agentIds: agents.map((agent) => agent.id),
+      attachmentsByAgentId: this.options.agentContextAttachmentsByAgentId,
+      endpointsByAgentId: new Map(
+        agents.map((agent) => [
           agent.id,
           {
             endpoint: agent.endpoint,
             endpointType: agent === this.options.agent ? this.options.endpointType : undefined,
           },
         ]),
-    );
-    assertAgentAttachmentTopology({
-      sharedAttachments,
-      scopedAttachmentsByAgentId: scopedAttachmentMap,
+      ),
       req: this.options.req,
       endpoint: this.options.agent?.endpoint ?? this.options.endpoint,
       endpointType: this.options.endpointType,
-      endpointsByAgentId,
     });
-    this.assertTurnAttachmentLimits(sharedAttachments, [...scopedAttachmentMap.values()].flat());
-    return compatibleHistoricalAttachments;
+    this.droppedHistoricalAttachments = dropped;
+    return admitted;
   }
 
   /** Mirrors the SDK's `MultiAgentGraph.analyzeGraph`: every loaded agent
@@ -2426,6 +2418,7 @@ class AgentClient extends BaseClient {
       historicalFiles: this.authorizedHistoricalFiles,
       requestAttachments,
       sharedRunAttachmentIds,
+      excludedHistoricalFileIds: collectFileIds(this.droppedHistoricalAttachments),
       attachmentsByAgentId: this.options.agentContextAttachmentsByAgentId,
     });
     const scopedAttachmentMap = buildAgentScopedAttachmentMap({
@@ -2867,6 +2860,13 @@ class AgentClient extends BaseClient {
     if (this.augmentedPrompt) {
       modelBoundFileContexts.add(this.augmentedPrompt);
       sharedRunContextParts.push(this.augmentedPrompt);
+    }
+    const droppedAttachmentsNote = buildDroppedHistoricalAttachmentsNote(
+      this.droppedHistoricalAttachments,
+    );
+    if (droppedAttachmentsNote) {
+      modelBoundFileContexts.add(droppedAttachmentsNote);
+      sharedRunContextParts.push(droppedAttachmentsNote);
     }
 
     /** Memory context (user preferences/memories). Keyed context (with memory

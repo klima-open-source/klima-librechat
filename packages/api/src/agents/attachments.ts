@@ -437,6 +437,153 @@ export function assertAgentAttachmentTopology({
   });
 }
 
+/** Inputs that consume a turn's attachment budget before any historical file. */
+export interface TurnAttachmentBudgetInput {
+  /** This turn's model-bound request files, enforced strictly. */
+  currentAttachments?: IMongoFile[];
+  agentIds?: string[];
+  attachmentsByAgentId?: AgentContextAttachmentsByAgentId<IMongoFile>;
+  endpointsByAgentId?: AgentAttachmentEndpointsByAgentId;
+  req?: ServerRequest;
+  endpoint?: string | null;
+  endpointType?: string | null;
+}
+
+export interface HistoricalAttachmentSelection<TFile> {
+  admitted: TFile[];
+  /** One entry per dropped file, oldest first. */
+  dropped: TFile[];
+}
+
+/**
+ * The per-agent and run-wide checks a turn applies to its shared files (historical plus current)
+ * and each agent's scoped context attachments.
+ */
+function assertTurnAttachmentBudget(
+  historicalAttachments: IMongoFile[],
+  input: TurnAttachmentBudgetInput,
+): void {
+  const sharedAttachments = [...historicalAttachments, ...(input.currentAttachments ?? [])];
+  const scopedAttachmentsByAgentId = buildAgentScopedAttachmentMap({
+    agentIds: input.agentIds ?? [],
+    attachmentsByAgentId: input.attachmentsByAgentId,
+    sharedRunAttachmentIds: collectFileIds(sharedAttachments),
+    req: input.req,
+    endpoint: input.endpoint ?? EModelEndpoint.agents,
+    endpointType: input.endpointType,
+    endpointsByAgentId: input.endpointsByAgentId,
+  });
+  assertAgentAttachmentTopology({
+    sharedAttachments,
+    scopedAttachmentsByAgentId,
+    req: input.req,
+    endpoint: input.endpoint,
+    endpointType: input.endpointType,
+    endpointsByAgentId: input.endpointsByAgentId,
+  });
+  assertAgentAttachmentLimits({
+    attachments: [...sharedAttachments, ...[...scopedAttachmentsByAgentId.values()].flat()],
+    req: input.req,
+    endpoint: input.endpoint ?? undefined,
+    endpointType: input.endpointType,
+    countRepeatedExtractedText: true,
+    enforceAttachmentCount: false,
+    useGlobalContextSizeLimit: true,
+  });
+}
+
+function fitsTurnAttachmentBudget(
+  historicalAttachments: IMongoFile[],
+  input: TurnAttachmentBudgetInput,
+): boolean {
+  try {
+    assertTurnAttachmentBudget(historicalAttachments, input);
+    return true;
+  } catch (error) {
+    if (error instanceof AgentAttachmentLimitError) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Keeps the newest historical attachments that fit the turn's count, byte and extracted-text
+ * limits once current request files and agent-scoped context attachments have taken their share.
+ *
+ * `historicalAttachments` is ordered oldest first and may repeat a file; every occurrence of a
+ * file is kept or dropped together, so repeated text is counted exactly as the turn asserts do.
+ * Current and scoped attachments are still enforced strictly: when they exceed a limit on their
+ * own, the typed `AgentAttachmentLimitError` is thrown. `AgentAttachmentPolicyError` propagates.
+ */
+export function selectHistoricalAttachmentsWithinLimits<TFile extends IMongoFile>({
+  historicalAttachments,
+  ...budget
+}: TurnAttachmentBudgetInput & {
+  historicalAttachments: TFile[];
+}): HistoricalAttachmentSelection<TFile> {
+  if (fitsTurnAttachmentBudget(historicalAttachments, budget)) {
+    return { admitted: historicalAttachments, dropped: [] };
+  }
+  assertTurnAttachmentBudget([], budget);
+
+  const unitIndexByKey = new Map<string | TFile, number>();
+  const units: TFile[] = [];
+  const unitIndexes = historicalAttachments.map((file) => {
+    const key = file.file_id || file;
+    let unitIndex = unitIndexByKey.get(key);
+    if (unitIndex === undefined) {
+      unitIndex = units.length;
+      unitIndexByKey.set(key, unitIndex);
+      units.push(file);
+    }
+    return unitIndex;
+  });
+  const keepNewest = (count: number) => {
+    const firstKept = units.length - count;
+    return historicalAttachments.filter((_file, index) => unitIndexes[index] >= firstKept);
+  };
+
+  /** Adding a file never lowers a total, so the largest fitting suffix is found by bisection. */
+  let fitting = 0;
+  let exceeding = units.length;
+  while (exceeding - fitting > 1) {
+    const middle = Math.floor((fitting + exceeding) / 2);
+    if (fitsTurnAttachmentBudget(keepNewest(middle), budget)) {
+      fitting = middle;
+    } else {
+      exceeding = middle;
+    }
+  }
+
+  const admitted = keepNewest(fitting);
+  assertTurnAttachmentBudget(admitted, budget);
+  const dropped = units.slice(0, units.length - fitting);
+  logger.info('[selectHistoricalAttachmentsWithinLimits] Dropped historical attachments', {
+    droppedFileIds: dropped.map((file) => file.file_id),
+    admittedCount: units.length - dropped.length,
+  });
+  return { admitted, dropped };
+}
+
+/** Bounds the model-facing note when a long conversation drops many files at once. */
+const MAX_DROPPED_ATTACHMENT_NAMES = 20;
+
+/** Fixed model-facing note naming historical files left out of this turn, if any. */
+export function buildDroppedHistoricalAttachmentsNote(
+  dropped?: ReadonlyArray<{ filename?: string | null } | null | undefined> | null,
+): string | undefined {
+  if (!dropped?.length) {
+    return undefined;
+  }
+  const names = dropped
+    .slice(0, MAX_DROPPED_ATTACHMENT_NAMES)
+    .map((file) => file?.filename?.replace(/\s+/g, ' ').trim() || 'unnamed file');
+  const remaining = dropped.length - names.length;
+  const more = remaining > 0 ? `, and ${remaining} more` : '';
+  return `Some files attached earlier in this conversation are no longer included because the conversation exceeded its attachment limit: ${names.join(', ')}${more}.`;
+}
+
 type AgentMemoryPhase =
   | 'before_process_attachments'
   | 'after_process_attachments'

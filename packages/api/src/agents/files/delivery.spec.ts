@@ -321,4 +321,23 @@ describe('resolveScopedTurnAttachments', () => {
       }).get('handoff'),
     ).toEqual([]);
   });
+
+  it('does not restore history left out to fit the attachment limits', () => {
+    const kept = { ...file, file_id: 'kept' };
+    const dropped = { ...file, file_id: 'dropped' };
+    const scoped = resolveScopedTurnAttachments({
+      agents: [receiver],
+      sharedConversationAgentIds: ['handoff'],
+      messages: [{ files: [{ file_id: 'dropped' }, { file_id: 'kept' }] }],
+      historicalFiles: new Map([
+        [kept.file_id, kept],
+        [dropped.file_id, dropped],
+      ]),
+      requestAttachments: [],
+      sharedRunAttachmentIds: new Set(),
+      excludedHistoricalFileIds: new Set(['dropped']),
+    }).get('handoff');
+
+    expect(scoped).toEqual([{ ...kept, llmDeliveryPath: 'text' }]);
+  });
 });

@@ -1924,8 +1924,15 @@ class BaseClient {
     }
     let admittedHistoricalFileIds;
     if (typeof this.assertHistoricalAttachmentLimits === 'function') {
+      /** Oldest first, so limit admission keeps the newest files. */
+      const historicalOrder = new Map(historicalFileState.fileIds.map((id, index) => [id, index]));
       const admittedHistoricalFiles = await this.assertHistoricalAttachmentLimits(
         [...nonSteerReplayFileIds, ...steerReplayFileIds]
+          .sort(
+            (a, b) =>
+              (historicalOrder.get(a) ?? Number.MAX_SAFE_INTEGER) -
+              (historicalOrder.get(b) ?? Number.MAX_SAFE_INTEGER),
+          )
           .map((fileId) => authorizedFilesById.get(fileId))
           .filter((file) => file != null && isModelBoundAttachmentFile(file)),
       );

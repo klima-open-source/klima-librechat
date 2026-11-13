@@ -6181,7 +6181,7 @@ describe('AgentClient - titleConvo', () => {
       ).resolves.toEqual(expect.objectContaining({ prompt: expect.any(Array) }));
     });
 
-    it('rejects combined historical and current bytes before either batch is encoded', async () => {
+    it('drops historical bytes that no longer fit beside the current files', async () => {
       mockAgent.endpoint = 'Moonshot';
       client.options.endpointType = EModelEndpoint.custom;
       client.options.resendFiles = true;
@@ -6209,15 +6209,42 @@ describe('AgentClient - titleConvo', () => {
             files: [{ file_id: first.file_id }],
           },
         ]),
-      ).rejects.toMatchObject({
-        code: 'AGENT_ATTACHMENT_LIMIT_EXCEEDED',
-        limitType: 'bytes',
-      });
+      ).resolves.toHaveLength(1);
+      expect(client.droppedHistoricalAttachments).toEqual([first]);
       expect(client.addFileContextToMessage).not.toHaveBeenCalled();
       expect(client.processAttachments).not.toHaveBeenCalled();
     });
 
-    it('rejects combined historical and scoped bytes before history is encoded', async () => {
+    it('rejects current bytes that exceed the limit on their own', async () => {
+      mockAgent.endpoint = 'Moonshot';
+      client.options.endpointType = EModelEndpoint.custom;
+      client.options.resendFiles = true;
+      mockReq.config.fileConfig = {
+        endpoints: { Moonshot: { fileLimit: 10, totalSizeLimit: 1 } },
+      };
+      const historical = makeUploadedFile('history-1', 'one.pdf', 'application/pdf');
+      const current = {
+        ...makeUploadedFile('current-1', 'two.pdf', 'application/pdf'),
+        bytes: 2 * 1024 * 1024,
+      };
+      client.options.attachments = Promise.resolve([current]);
+      require('~/models').getFiles.mockResolvedValue([historical]);
+
+      await expect(
+        client.addPreviousAttachments([
+          {
+            messageId: 'msg-1',
+            isCreatedByUser: true,
+            files: [{ file_id: historical.file_id }],
+          },
+        ]),
+      ).rejects.toMatchObject({
+        code: 'AGENT_ATTACHMENT_LIMIT_EXCEEDED',
+        limitType: 'bytes',
+      });
+    });
+
+    it('drops historical bytes that no longer fit beside scoped context', async () => {
       mockAgent.endpoint = 'Moonshot';
       client.options.endpointType = EModelEndpoint.custom;
       client.options.resendFiles = true;
@@ -6251,12 +6278,82 @@ describe('AgentClient - titleConvo', () => {
             files: [{ file_id: historicalFile.file_id }],
           },
         ]),
-      ).rejects.toMatchObject({
-        code: 'AGENT_ATTACHMENT_LIMIT_EXCEEDED',
-        limitType: 'bytes',
-      });
+      ).resolves.toHaveLength(1);
+      expect(client.droppedHistoricalAttachments).toEqual([historicalFile]);
       expect(client.addFileContextToMessage).not.toHaveBeenCalled();
       expect(client.processAttachments).not.toHaveBeenCalled();
+    });
+
+    describe('when history exceeds the attachment count limit', () => {
+      const historicalFiles = Array.from({ length: 12 }, (_, index) => ({
+        ...makeTextFile(`history-${index}`, `history-${index}.txt`, `history text ${index}`),
+        llmDeliveryPath: 'text',
+        metadata: { destinationChosen: true },
+      }));
+      const historyMessages = () => [
+        ...historicalFiles.map((file, index) => ({
+          messageId: `history-msg-${index}`,
+          parentMessageId: index === 0 ? null : `history-msg-${index - 1}`,
+          sender: 'User',
+          text: `Read ${file.filename}`,
+          isCreatedByUser: true,
+          files: [{ file_id: file.file_id }],
+        })),
+        {
+          messageId: 'msg-new',
+          parentMessageId: 'history-msg-11',
+          sender: 'User',
+          text: 'Just a text question.',
+          isCreatedByUser: true,
+        },
+      ];
+
+      beforeEach(() => {
+        client.options.resendFiles = true;
+        mockReq.config.fileConfig = { endpoints: { openAI: { fileLimit: 10 } } };
+        require('~/models').getFiles.mockResolvedValue(historicalFiles);
+        client.processAttachments = jest.fn((_message, files) => files);
+      });
+
+      it('sends only the newest files within the limit and tells the model about the rest', async () => {
+        const messages = await client.addPreviousAttachments(historyMessages());
+        const result = await client.buildMessages(messages, 'msg-new', {});
+
+        expect(Object.values(client.message_file_map).flat()).toEqual(historicalFiles.slice(2));
+        expect(client.droppedHistoricalAttachments).toEqual(historicalFiles.slice(0, 2));
+        const prompt = JSON.stringify(result.prompt);
+        expect(prompt).toContain('history text 11');
+        expect(prompt).toContain('history text 2');
+        expect(prompt).not.toMatch(/history text [01](?!\d)/);
+        expect(mockAgent.additional_instructions).toContain(
+          'Some files attached earlier in this conversation are no longer included because the conversation exceeded its attachment limit: history-0.txt, history-1.txt.',
+        );
+      });
+
+      it('does not restore dropped text files as agent-scoped context', async () => {
+        const messages = await client.addPreviousAttachments(historyMessages());
+        await client.buildMessages(messages, 'msg-new', {});
+
+        const scopedFileIds = [...client.turnScopedAttachmentsByAgentId.values()]
+          .flat()
+          .map((file) => file.file_id);
+        expect(scopedFileIds).not.toContain('history-0');
+        expect(scopedFileIds).not.toContain('history-1');
+        expect(mockAgent.additional_instructions).not.toContain('history text 0');
+      });
+
+      it('still rejects new files that exceed the count limit on their own', async () => {
+        client.options.attachments = Promise.resolve(
+          Array.from({ length: 11 }, (_, index) =>
+            makeTextFile(`current-${index}`, `current-${index}.txt`, 'current text'),
+          ),
+        );
+
+        await expect(client.addPreviousAttachments(historyMessages())).rejects.toMatchObject({
+          code: 'AGENT_ATTACHMENT_LIMIT_EXCEEDED',
+          limitType: 'count',
+        });
+      });
     });
 
     it('does not count display-only historical artifacts toward model attachment limits', async () => {

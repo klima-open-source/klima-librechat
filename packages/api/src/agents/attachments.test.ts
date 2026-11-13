@@ -21,6 +21,8 @@ import {
   isToolOwnedAttachment,
   resolveAgentAttachmentLimitError,
   getAgentAttachmentLimitErrorDetails,
+  buildDroppedHistoricalAttachmentsNote,
+  selectHistoricalAttachmentsWithinLimits,
 } from './attachments';
 import { applyTurnDelivery, resolveTurnDeliveryRouting } from './files/delivery';
 
@@ -672,6 +674,164 @@ describe('agent attachment helpers', () => {
         req,
       }),
     ).resolves.toEqual(new Map());
+  });
+});
+
+describe('selectHistoricalAttachmentsWithinLimits', () => {
+  const makeRequest = (fileConfig: Record<string, unknown>) =>
+    ({ config: { fileConfig } }) as unknown as ServerRequest;
+  const makeFiles = (prefix: string, count: number, text = 'context', bytes = 1) =>
+    Array.from({ length: count }, (_, index) => ({
+      ...makeTextFile(`${prefix}-${index}`, `${prefix}-${index}.txt`, text),
+      bytes,
+    }));
+  const select = (
+    historicalAttachments: IMongoFile[],
+    fileConfig: Record<string, unknown>,
+    currentAttachments: IMongoFile[] = [],
+  ) =>
+    selectHistoricalAttachmentsWithinLimits({
+      historicalAttachments,
+      currentAttachments,
+      agentIds: ['primary'],
+      endpointsByAgentId: new Map([['primary', { endpoint: EModelEndpoint.openAI }]]),
+      endpoint: EModelEndpoint.openAI,
+      req: makeRequest(fileConfig),
+    });
+  const ids = (files: IMongoFile[]) => files.map((file) => file.file_id);
+
+  it('admits every historical file when the turn is within its limits', () => {
+    const history = makeFiles('history', 3);
+
+    expect(select(history, { endpoints: { openAI: { fileLimit: 10 } } })).toEqual({
+      admitted: history,
+      dropped: [],
+    });
+  });
+
+  it('keeps the newest historical files within the count limit', () => {
+    const history = makeFiles('history', 12);
+
+    const { admitted, dropped } = select(history, { endpoints: { openAI: { fileLimit: 10 } } });
+
+    expect(ids(admitted)).toEqual(ids(history.slice(2)));
+    expect(ids(dropped)).toEqual(['history-0', 'history-1']);
+  });
+
+  it('lets current request files consume the budget before history', () => {
+    const history = makeFiles('history', 10);
+    const current = makeFiles('current', 3);
+
+    const { admitted, dropped } = select(
+      history,
+      { endpoints: { openAI: { fileLimit: 10 } } },
+      current,
+    );
+
+    expect(ids(admitted)).toEqual(ids(history.slice(3)));
+    expect(ids(dropped)).toEqual(['history-0', 'history-1', 'history-2']);
+  });
+
+  it('counts agent-scoped context attachments against the budget', () => {
+    const history = makeFiles('history', 10);
+
+    const { admitted } = selectHistoricalAttachmentsWithinLimits({
+      historicalAttachments: history,
+      agentIds: ['primary'],
+      attachmentsByAgentId: new Map([['primary', makeFiles('scoped', 2)]]),
+      endpointsByAgentId: new Map([['primary', { endpoint: EModelEndpoint.openAI }]]),
+      endpoint: EModelEndpoint.openAI,
+      req: makeRequest({ endpoints: { openAI: { fileLimit: 10 } } }),
+    });
+
+    expect(ids(admitted)).toEqual(ids(history.slice(2)));
+  });
+
+  it('keeps the newest historical files within the byte limit', () => {
+    const history = makeFiles('history', 3, 'context', 400_000);
+
+    const { admitted, dropped } = select(history, {
+      endpoints: { openAI: { fileLimit: 10, totalSizeLimit: 1 } },
+    });
+
+    expect(ids(admitted)).toEqual(['history-1', 'history-2']);
+    expect(ids(dropped)).toEqual(['history-0']);
+  });
+
+  it('keeps the newest historical files within the extracted text limit', () => {
+    const history = makeFiles('history', 3, 'x'.repeat(40));
+
+    const { admitted, dropped } = select(history, {
+      fileContextCharLimit: 100,
+      endpoints: { openAI: { fileLimit: 10 } },
+    });
+
+    expect(ids(admitted)).toEqual(['history-1', 'history-2']);
+    expect(ids(dropped)).toEqual(['history-0']);
+  });
+
+  it('counts repeated text for every occurrence and drops a file with all its occurrences', () => {
+    const [repeated, single] = makeFiles('history', 2, 'x'.repeat(40));
+
+    const { admitted, dropped } = select([repeated, single, repeated], {
+      fileContextCharLimit: 100,
+      endpoints: { openAI: { fileLimit: 10 } },
+    });
+
+    expect(admitted).toEqual([single]);
+    expect(dropped).toEqual([repeated]);
+  });
+
+  it('still rejects current files that exceed a limit on their own', () => {
+    expect(() =>
+      select(makeFiles('history', 2), { endpoints: { openAI: { fileLimit: 2 } } }, [
+        ...makeFiles('current', 3),
+      ]),
+    ).toThrow(expect.objectContaining({ limitType: 'count', observed: 3, limit: 2 }));
+  });
+
+  it('propagates attachment policy errors', () => {
+    const incompatible = {
+      ...makeTextFile('history-pdf', 'history.pdf', ''),
+      source: FileSources.local,
+      type: 'application/pdf',
+      bytes: 1,
+    };
+
+    expect(() =>
+      selectHistoricalAttachmentsWithinLimits({
+        historicalAttachments: [incompatible, ...makeFiles('history', 2)],
+        agentIds: ['secondary'],
+        endpointsByAgentId: new Map([['secondary', { endpoint: 'Moonshot' }]]),
+        req: makeRequest({
+          endpoints: { Moonshot: { fileLimit: 1, supportedMimeTypes: ['^text/plain$'] } },
+        }),
+      }),
+    ).toThrow(AgentAttachmentPolicyError);
+  });
+});
+
+describe('buildDroppedHistoricalAttachmentsNote', () => {
+  it('returns nothing when no file was dropped', () => {
+    expect(buildDroppedHistoricalAttachmentsNote([])).toBeUndefined();
+    expect(buildDroppedHistoricalAttachmentsNote(undefined)).toBeUndefined();
+  });
+
+  it('names the dropped files', () => {
+    expect(
+      buildDroppedHistoricalAttachmentsNote([{ filename: 'a.pdf' }, { filename: 'b\n.txt' }, {}]),
+    ).toBe(
+      'Some files attached earlier in this conversation are no longer included because the conversation exceeded its attachment limit: a.pdf, b .txt, unnamed file.',
+    );
+  });
+
+  it('bounds the number of listed names', () => {
+    const dropped = Array.from({ length: 25 }, (_, index) => ({ filename: `f${index}.txt` }));
+
+    const note = buildDroppedHistoricalAttachmentsNote(dropped);
+
+    expect(note).toContain('f19.txt, and 5 more.');
+    expect(note).not.toContain('f20.txt');
   });
 });
 
