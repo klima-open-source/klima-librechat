@@ -21,8 +21,8 @@ export type OpenIDExchangedTokenLoader = (userId: string) => Promise<OpenIDExcha
  * login issues a new token. `code` is the stable value the client maps to localized copy.
  */
 export class OpenIDExchangedTokenRequiredError extends Error {
-  readonly code = ErrorTypes.TOOL_ACCESS_EXPIRED;
-  readonly statusCode = 403;
+  readonly code: ErrorTypes.TOOL_ACCESS_EXPIRED = ErrorTypes.TOOL_ACCESS_EXPIRED;
+  readonly statusCode = 403 as const;
 
   constructor() {
     super('Your access to this tool expired. Sign in again to keep using it.');
