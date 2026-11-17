@@ -8,6 +8,7 @@ import {
   ScheduleMCPError,
 } from './mcp';
 import { OboTokenResolutionError, createLazyOboUpstreamTokenProvider } from '../mcp/oauth/obo';
+import { OpenIDExchangedTokenRequiredError } from '../mcp/exchanged';
 
 const principal = { id: 'owner', role: 'USER' };
 const server: ParsedServerConfig = { type: 'streamable-http', url: 'https://mcp.example.test/mcp' };
@@ -325,6 +326,17 @@ it('classifies a permanent OBO credential failure as requiring reauthentication'
   const { check, deps } = setup();
   deps.connect = async () => {
     throw new OboTokenResolutionError('session_refresh_failed', 'Sign-in expired.');
+  };
+
+  await expect(check('agent', principal)).rejects.toMatchObject({
+    code: 'mcp_reauth_required',
+  });
+});
+
+it('classifies a missing exchanged OpenID token as requiring reauthentication', async () => {
+  const { check, deps } = setup();
+  deps.connect = async () => {
+    throw new OpenIDExchangedTokenRequiredError();
   };
 
   await expect(check('agent', principal)).rejects.toMatchObject({

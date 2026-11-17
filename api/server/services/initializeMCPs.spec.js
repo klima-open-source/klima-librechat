@@ -81,6 +81,14 @@ const mockGetMCPToolsCacheGeneration = jest.fn();
 const mockRenewMCPToolsCacheGeneration = jest.fn();
 const mockGetNextAppToolsPublicationRevision = jest.fn();
 const mockGetDeploymentPluginMcpServers = jest.fn(() => ({}));
+const mockLoadOpenIDExchangedToken = jest.fn();
+const mockFindToken = jest.fn();
+
+jest.mock('~/models', () => ({
+  get findToken() {
+    return mockFindToken;
+  },
+}));
 
 jest.mock('@librechat/api', () => ({
   get registerShutdownTask() {
@@ -88,6 +96,9 @@ jest.mock('@librechat/api', () => ({
   },
   get getDeploymentPluginMcpServers() {
     return mockGetDeploymentPluginMcpServers;
+  },
+  get loadOpenIDExchangedToken() {
+    return mockLoadOpenIDExchangedToken;
   },
   get setMCPToolsChangedHandler() {
     return mockSetMCPToolsChangedHandler;
@@ -240,6 +251,7 @@ describe('initializeMCPs', () => {
         {
           catalogRecoveryMaxStateEntries: undefined,
           catalogRecoveryMaxDetachedDiscoveries: undefined,
+          loadOpenIDExchangedToken: expect.any(Function),
         },
       );
     });
@@ -256,6 +268,22 @@ describe('initializeMCPs', () => {
       expect(mockCreateMCPManager).toHaveBeenCalledWith(mcpServers, {
         catalogRecoveryMaxStateEntries: undefined,
         catalogRecoveryMaxDetachedDiscoveries: undefined,
+        loadOpenIDExchangedToken: expect.any(Function),
+      });
+    });
+
+    it("reads a user's exchanged OpenID token from the token store", async () => {
+      const token = { accessToken: 'exchanged', expiresAt: Date.now() + 60_000 };
+      mockGetAppConfig.mockResolvedValue({ mcpConfig: null });
+      mockLoadOpenIDExchangedToken.mockResolvedValue(token);
+
+      await initializeMCPs();
+
+      const { loadOpenIDExchangedToken } = mockCreateMCPManager.mock.calls[0][1];
+      await expect(loadOpenIDExchangedToken('user-1')).resolves.toBe(token);
+      expect(mockLoadOpenIDExchangedToken).toHaveBeenCalledWith({
+        userId: 'user-1',
+        findToken: mockFindToken,
       });
     });
 
@@ -280,6 +308,7 @@ describe('initializeMCPs', () => {
         {
           catalogRecoveryMaxStateEntries: 2500,
           catalogRecoveryMaxDetachedDiscoveries: 8,
+          loadOpenIDExchangedToken: expect.any(Function),
         },
       );
       expect(mockStartMCPAuthorizationFenceRetryWorker).toHaveBeenCalledWith(
@@ -470,6 +499,7 @@ describe('initializeMCPs', () => {
         {
           catalogRecoveryMaxStateEntries: undefined,
           catalogRecoveryMaxDetachedDiscoveries: undefined,
+          loadOpenIDExchangedToken: expect.any(Function),
         },
       );
     });

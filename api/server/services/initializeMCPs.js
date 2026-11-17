@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { logger } = require('@librechat/data-schemas');
 const {
   registerShutdownTask,
+  loadOpenIDExchangedToken,
   setMCPToolsChangedHandler,
   getDeploymentPluginMcpServers,
   setMCPToolsChangedGenerationHandler,
@@ -17,6 +18,7 @@ const {
   updateMCPServerTools,
 } = require('./Config/mcp');
 const { createMCPServersRegistry, createMCPManager } = require('~/config');
+const { findToken } = require('~/models');
 
 /**
  * Resolves the current request's effective MCP allowlists from the merged (tenant-scoped)
@@ -118,6 +120,7 @@ async function initializeMCPs() {
       catalogRecoveryMaxStateEntries: appConfig?.mcpSettings?.catalogRecovery?.maxStateEntries,
       catalogRecoveryMaxDetachedDiscoveries:
         appConfig?.mcpSettings?.catalogRecovery?.maxDetachedDiscoveries,
+      loadOpenIDExchangedToken: (userId) => loadOpenIDExchangedToken({ userId, findToken }),
     });
     startMCPAuthorizationFenceRetryWorker(invalidateCachedTools, {
       intervalMs: appConfig?.mcpSettings?.catalogRecovery?.authorizationFenceRetryIntervalMs,

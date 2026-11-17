@@ -24,6 +24,7 @@ export const errorCopy: Record<string, TranslationKeys> = {
   [ErrorTypes.GOOGLE_TOOL_CONFLICT]: 'com_error_google_tool_conflict',
   [ErrorTypes.GOOGLE_VIDEO_UNPROCESSABLE]: 'com_error_google_video_unprocessable',
   [ErrorTypes.RESOURCE_RECOVERY_REQUIRED]: 'com_error_resource_recovery_required',
+  [ErrorTypes.TOOL_ACCESS_EXPIRED]: 'com_error_tool_access_expired',
   [ErrorTypes.STATEFUL_CODE_ENVIRONMENT_NOT_ALLOWED]:
     'com_error_stateful_code_environment_not_allowed',
   [ErrorTypes.STREAM_EXPIRED]: 'com_error_stream_expired',

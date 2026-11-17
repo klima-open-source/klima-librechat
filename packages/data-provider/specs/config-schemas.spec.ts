@@ -1127,6 +1127,23 @@ describe('configSchema fileStrategy', () => {
   });
 });
 
+describe('configSchema registration.openidTokenExchange', () => {
+  it('is absent by default and defaults to disabled with the legacy-api audience', () => {
+    const parse = (registration: object) =>
+      configSchema.parse({ version: '1.3.7', registration }).registration.openidTokenExchange;
+    expect(parse({})).toBeUndefined();
+    expect(parse({ openidTokenExchange: {} })).toEqual({ enabled: false, audience: 'legacy-api' });
+  });
+
+  it('rejects an empty audience', () => {
+    const result = configSchema.safeParse({
+      version: '1.3.7',
+      registration: { openidTokenExchange: { enabled: true, audience: '' } },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('configSchema skillSync', () => {
   it('accepts a GitHub skill sync source with explicit paths and credential key', () => {
     const result = configSchema.safeParse({

@@ -1976,6 +1976,52 @@ describe('User parameter passing tests', () => {
       ).rejects.toBe(reauthError);
     });
 
+    it('preserves the stable sign-in code when the exchanged OpenID token is missing', async () => {
+      const { OpenIDExchangedTokenRequiredError } = require('@librechat/api');
+      const mockUser = { id: 'exchanged-user', role: 'USER' };
+      const mockRes = { write: jest.fn(), flush: jest.fn() };
+      const { getRoleByName } = require('~/models');
+      getRoleByName.mockResolvedValue({
+        permissions: {
+          [PermissionTypes.MCP_SERVERS]: {
+            [Permissions.USE]: true,
+          },
+        },
+      });
+      const signInError = new OpenIDExchangedTokenRequiredError();
+      mockGetMCPManager.mockReturnValue({
+        callTool: jest.fn().mockRejectedValue(signInError),
+      });
+
+      const mcpTool = await createMCPTool({
+        res: mockRes,
+        user: mockUser,
+        config: { requiresOAuth: false },
+        toolKey: `test-tool${D}test-server`,
+        provider: 'openai',
+        userMCPAuthMap: {},
+        availableTools: {
+          [`test-tool${D}test-server`]: {
+            function: {
+              description: 'Cached tool',
+              parameters: { type: 'object', properties: {} },
+            },
+          },
+        },
+      });
+
+      await expect(
+        mcpTool.invoke(
+          {},
+          {
+            configurable: { user: mockUser },
+            metadata: { provider: 'openai', thread_id: 'thread-1', run_id: 'run-1' },
+            toolCall: {},
+          },
+        ),
+      ).rejects.toMatchObject({ code: 'tool_access_expired' });
+    });
+
     it('does not label OBO authentication failures as unconfigured MCP OAuth', async () => {
       const mockUser = { id: 'obo-user', role: 'USER' };
       const mockRes = { write: jest.fn(), flush: jest.fn() };

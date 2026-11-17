@@ -10,6 +10,10 @@ import {
   processOpenIDPlaceholders,
   OpenIDReauthRequiredError,
 } from './oidc';
+import {
+  isOpenIDExchangedTokenSource,
+  resolveOpenIDExchangedTokenPlaceholder,
+} from '~/mcp/exchanged';
 import { getAdminApiKeyHeader } from '~/mcp/headers';
 
 /**
@@ -300,6 +304,7 @@ function processSingleValue({
   body = undefined,
   isHeader = false,
   dbSourced = false,
+  exchangedTokenAllowed = false,
 }: {
   originalValue: string;
   customUserVars?: Record<string, string>;
@@ -308,6 +313,8 @@ function processSingleValue({
   isHeader?: boolean;
   /** When true, only resolve customUserVars — skip env vars, user/OpenID/body placeholders */
   dbSourced?: boolean;
+  /** Set only for header values of operator-defined MCP servers. */
+  exchangedTokenAllowed?: boolean;
 }): string {
   // Type guard: ensure we're working with a string
   if (typeof originalValue !== 'string') {
@@ -325,6 +332,11 @@ function processSingleValue({
    */
   if (!dbSourced) {
     value = extractEnvVariable(value);
+  }
+
+  /** Before any user-controlled substitution, so only the operator's template can name it. */
+  if (exchangedTokenAllowed && !dbSourced) {
+    value = resolveOpenIDExchangedTokenPlaceholder(value, user);
   }
 
   /** Runs for both dbSourced and non-dbSourced — it is the only resolution DB-stored servers get */
@@ -428,6 +440,7 @@ export function processMCPEnv(params: {
         )
       : params.customUserVars;
 
+  const exchangedTokenAllowed = !dbSourced && isOpenIDExchangedTokenSource(options);
   const newObj: MCPOptions = structuredClone(options);
 
   const adminHeader = getAdminApiKeyHeader(newObj.apiKey);
@@ -474,6 +487,7 @@ export function processMCPEnv(params: {
         dbSourced,
         originalValue,
         customUserVars,
+        exchangedTokenAllowed,
         isHeader: true, // Important: Enable header encoding
       });
     }

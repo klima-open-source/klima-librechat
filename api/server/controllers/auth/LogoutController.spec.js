@@ -7,12 +7,18 @@ const mockGetOpenIdConfig = jest.fn();
 const mockClearCloudFrontCookies = jest.fn();
 const mockDeleteAllRefreshTokenBridges = jest.fn();
 const mockRevokeOpenIDRefreshTokenChain = jest.fn();
+const mockClearOpenIDExchangedToken = jest.fn();
+const mockDeleteTokens = jest.fn();
 
 jest.mock('cookie');
 jest.mock('@librechat/api', () => ({
   isEnabled: (...args) => mockIsEnabled(...args),
   math: (_value, fallback) => fallback,
   clearCloudFrontCookies: (...args) => mockClearCloudFrontCookies(...args),
+  clearOpenIDExchangedToken: (...args) => mockClearOpenIDExchangedToken(...args),
+}));
+jest.mock('~/models', () => ({
+  deleteTokens: (...args) => mockDeleteTokens(...args),
 }));
 jest.mock('@librechat/data-schemas', () => ({
   logger: mockLogger,
@@ -72,6 +78,7 @@ beforeEach(() => {
   mockLogoutUser.mockResolvedValue({ status: 200, message: 'Logout successful' });
   mockDeleteAllRefreshTokenBridges.mockResolvedValue({ acknowledged: true, deletedCount: 1 });
   mockRevokeOpenIDRefreshTokenChain.mockResolvedValue(['cookie-rt', 'srt']);
+  mockClearOpenIDExchangedToken.mockResolvedValue(undefined);
   mockIsEnabled.mockReturnValue(true);
   mockGetOpenIdConfig.mockReturnValue({
     serverMetadata: () => ({
@@ -346,6 +353,39 @@ describe('LogoutController', () => {
       expect(mockLogoutUser).not.toHaveBeenCalled();
       expect(req.session.openidTokens).toBeDefined();
       expect(res.status).toHaveBeenCalledWith(500);
+    });
+  });
+
+  describe('exchanged OpenID token', () => {
+    it("deletes the user's exchanged token on logout", async () => {
+      const req = buildReq();
+      const res = buildRes();
+
+      await logoutController(req, res);
+
+      expect(mockClearOpenIDExchangedToken).toHaveBeenCalledWith({
+        userId: 'user1',
+        deleteTokens: expect.any(Function),
+      });
+      await mockClearOpenIDExchangedToken.mock.calls[0][0].deleteTokens({ userId: 'user1' });
+      expect(mockDeleteTokens).toHaveBeenCalledWith({ userId: 'user1' });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('does not touch the token store for non-OpenID users', async () => {
+      const req = buildReq({ user: { _id: 'user1', provider: 'local' } });
+
+      await logoutController(req, buildRes());
+
+      expect(mockClearOpenIDExchangedToken).not.toHaveBeenCalled();
+    });
+
+    it('keeps the token while logout fails closed on refresh revocation', async () => {
+      mockRevokeOpenIDRefreshTokenChain.mockRejectedValue(new Error('flight fence failed'));
+
+      await logoutController(buildReq(), buildRes());
+
+      expect(mockClearOpenIDExchangedToken).not.toHaveBeenCalled();
     });
   });
 

@@ -1,17 +1,22 @@
+const client = require('openid-client');
 const { CacheKeys } = require('librechat-data-provider');
 const { logger, DEFAULT_SESSION_EXPIRY } = require('@librechat/data-schemas');
 const {
   isEnabled,
   getAdminPanelUrl,
   isAdminPanelRedirect,
+  resolveAppConfigForUser,
   generateAdminExchangeCode,
+  exchangeOpenIDTokenAtLogin,
 } = require('@librechat/api');
 const { syncUserEntraGroupMemberships } = require('~/server/services/PermissionService');
 const { setAuthTokens } = require('~/server/services/AuthService');
+const { getAppConfig } = require('~/server/services/Config');
 const { sendOpenIDAuthResponse } = require('~/server/services/OpenIDRefreshRecovery');
 const getLogStores = require('~/cache/getLogStores');
 const { checkBan } = require('~/server/middleware');
-const { generateToken } = require('~/models');
+const { generateToken, createToken, updateToken } = require('~/models');
+const { getOpenIdConfig } = require('~/strategies');
 
 const domains = {
   client: process.env.DOMAIN_CLIENT,
@@ -69,6 +74,19 @@ function createOAuthHandler(redirectUri = domains.client) {
         logger.info(`[OAuth] Admin panel redirect with exchange code for user: ${req.user.email}`);
         return res.redirect(callbackUrl.toString());
       }
+
+      /** Never rejects: a failed exchange leaves login untouched. */
+      await exchangeOpenIDTokenAtLogin({
+        userId: req.user?._id?.toString(),
+        provider: req.user?.provider,
+        subjectToken: req.user?.tokenset?.access_token,
+        loadConfig: async () =>
+          (await resolveAppConfigForUser(getAppConfig, req.user))?.registration
+            ?.openidTokenExchange,
+        grant: (grantType, parameters) =>
+          client.genericGrantRequest(getOpenIdConfig(), grantType, parameters),
+        methods: { createToken, updateToken },
+      });
 
       /** Standard OAuth flow - set cookies and redirect */
       if (

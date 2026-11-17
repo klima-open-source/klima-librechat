@@ -9,6 +9,13 @@ const mockGetLogStores = jest.fn();
 const mockCheckBan = jest.fn();
 const mockGenerateToken = jest.fn();
 const mockLogger = { info: jest.fn(), error: jest.fn() };
+const mockExchangeOpenIDTokenAtLogin = jest.fn();
+const mockResolveAppConfigForUser = jest.fn();
+const mockGetAppConfig = jest.fn();
+const mockGetOpenIdConfig = jest.fn();
+const mockGenericGrantRequest = jest.fn();
+const mockCreateToken = jest.fn();
+const mockUpdateToken = jest.fn();
 
 jest.mock('librechat-data-provider', () => ({
   CacheKeys: { ADMIN_OAUTH_EXCHANGE: 'admin-oauth-exchange' },
@@ -24,6 +31,20 @@ jest.mock('@librechat/api', () => ({
   getAdminPanelUrl: (...args) => mockGetAdminPanelUrl(...args),
   isAdminPanelRedirect: (...args) => mockIsAdminPanelRedirect(...args),
   generateAdminExchangeCode: (...args) => mockGenerateAdminExchangeCode(...args),
+  exchangeOpenIDTokenAtLogin: (...args) => mockExchangeOpenIDTokenAtLogin(...args),
+  resolveAppConfigForUser: (...args) => mockResolveAppConfigForUser(...args),
+}));
+
+jest.mock('openid-client', () => ({
+  genericGrantRequest: (...args) => mockGenericGrantRequest(...args),
+}));
+
+jest.mock('~/strategies', () => ({
+  getOpenIdConfig: (...args) => mockGetOpenIdConfig(...args),
+}));
+
+jest.mock('~/server/services/Config', () => ({
+  getAppConfig: (...args) => mockGetAppConfig(...args),
 }));
 
 jest.mock('~/server/services/PermissionService', () => ({
@@ -51,6 +72,8 @@ jest.mock('~/server/middleware', () => ({
 
 jest.mock('~/models', () => ({
   generateToken: (...args) => mockGenerateToken(...args),
+  createToken: (...args) => mockCreateToken(...args),
+  updateToken: (...args) => mockUpdateToken(...args),
 }));
 
 const { createOAuthHandler } = require('./oauth');
@@ -96,6 +119,7 @@ describe('createOAuthHandler', () => {
     mockGenerateToken.mockResolvedValue('jwt-token');
     mockGenerateAdminExchangeCode.mockResolvedValue('exchange-code');
     mockSendOpenIDAuthResponse.mockResolvedValue('app-token');
+    mockExchangeOpenIDTokenAtLogin.mockResolvedValue('stored');
   });
 
   afterAll(() => {
@@ -239,5 +263,91 @@ describe('createOAuthHandler', () => {
       'pkce-challenge',
       expect.any(Number),
     );
+  });
+  describe('OpenID token exchange', () => {
+    function standardLogin() {
+      mockIsAdminPanelRedirect.mockReturnValue(false);
+      const handler = createOAuthHandler('http://localhost:3080');
+      const req = buildReq({
+        user: {
+          _id: { toString: () => 'user-123' },
+          provider: 'openid',
+          tokenset: { access_token: 'sso-access-token', id_token: 'sso-id-token' },
+        },
+      });
+      const res = buildRes();
+      return { handler, req, res, next: jest.fn() };
+    }
+
+    it('exchanges the SSO access token before redirecting a standard login', async () => {
+      const { handler, req, res, next } = standardLogin();
+      const order = [];
+      mockExchangeOpenIDTokenAtLogin.mockImplementation(async () => {
+        order.push('exchange');
+        return 'stored';
+      });
+      res.redirect.mockImplementation(() => order.push('redirect'));
+
+      await handler(req, res, next);
+
+      expect(mockExchangeOpenIDTokenAtLogin).toHaveBeenCalledWith({
+        userId: 'user-123',
+        provider: 'openid',
+        subjectToken: 'sso-access-token',
+        loadConfig: expect.any(Function),
+        grant: expect.any(Function),
+        methods: { createToken: expect.any(Function), updateToken: expect.any(Function) },
+      });
+      expect(order).toEqual(['exchange', 'redirect']);
+      expect(mockSetAuthTokens).toHaveBeenCalled();
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it("reads the exchange settings from the signed-in user's configuration", async () => {
+      const { handler, req, res, next } = standardLogin();
+      const settings = { enabled: true, audience: 'legacy-api' };
+      mockResolveAppConfigForUser.mockResolvedValue({
+        registration: { openidTokenExchange: settings },
+      });
+
+      await handler(req, res, next);
+
+      const { loadConfig } = mockExchangeOpenIDTokenAtLogin.mock.calls[0][0];
+      await expect(loadConfig()).resolves.toBe(settings);
+      expect(mockResolveAppConfigForUser).toHaveBeenCalledWith(expect.any(Function), req.user);
+    });
+
+    it('sends the grant through the configured OpenID client', async () => {
+      const { handler, req, res, next } = standardLogin();
+      const openidConfig = { issuer: 'sso' };
+      mockGetOpenIdConfig.mockReturnValue(openidConfig);
+      mockGenericGrantRequest.mockResolvedValue({ access_token: 'legacy', expires_in: 86400 });
+
+      await handler(req, res, next);
+
+      const { grant } = mockExchangeOpenIDTokenAtLogin.mock.calls[0][0];
+      await grant('urn:grant', { audience: 'legacy-api' });
+      expect(mockGenericGrantRequest).toHaveBeenCalledWith(openidConfig, 'urn:grant', {
+        audience: 'legacy-api',
+      });
+    });
+
+    it('still completes the login when the exchange fails', async () => {
+      const { handler, req, res, next } = standardLogin();
+      mockExchangeOpenIDTokenAtLogin.mockResolvedValue('failed');
+
+      await handler(req, res, next);
+
+      expect(res.redirect).toHaveBeenCalledWith('http://localhost:3080');
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('does not exchange for an admin panel login', async () => {
+      const handler = createOAuthHandler('http://admin.example.com/auth/openid/callback');
+
+      await handler(buildReq(), buildRes(), jest.fn());
+
+      expect(mockExchangeOpenIDTokenAtLogin).not.toHaveBeenCalled();
+    });
   });
 });

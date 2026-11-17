@@ -44,6 +44,7 @@ const {
   isDirectOpenIDBearerRecoveryEnabled,
   buildMCPDomainValidationConfig,
   OpenIDReauthRequiredError,
+  OpenIDExchangedTokenRequiredError,
   MCPAuthenticationRefreshError,
   MCPAuthenticationRejectedError,
   prepareMCPAuthorizationMutation,
@@ -1401,6 +1402,7 @@ function createToolInstance({
       /** Carries the actionable re-auth message; the substring heuristic below would misreport it as an OAuth configuration problem */
       if (
         error instanceof OpenIDReauthRequiredError ||
+        error instanceof OpenIDExchangedTokenRequiredError ||
         error instanceof MCPAuthenticationRefreshError ||
         error instanceof MCPAuthenticationRejectedError
       ) {

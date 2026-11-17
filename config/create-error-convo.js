@@ -117,6 +117,10 @@ const ERROR_CASES = [
   payloadCase('Provider rejected the request', { type: ErrorTypes.INVALID_REQUEST }),
   payloadCase('Action domain not allowed', { type: ErrorTypes.INVALID_ACTION }),
   payloadCase('Provider forbids system messages', { type: ErrorTypes.NO_SYSTEM_MESSAGES }),
+  payloadCase('Tool access expired; sign in again', {
+    code: ErrorTypes.TOOL_ACCESS_EXPIRED,
+    status: 403,
+  }),
   /** `ModelEndHandler` persists the provider's stop metadata object itself as `info`. */
   payloadCase('Model refused to answer (Anthropic stop details)', {
     type: ErrorTypes.REFUSAL,

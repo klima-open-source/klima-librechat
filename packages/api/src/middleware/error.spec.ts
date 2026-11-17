@@ -2,6 +2,7 @@ import { logger, tenantStorage } from '@librechat/data-schemas';
 import type { Request, Response } from 'express';
 import type { ValidationError, MongoServerError, CustomError } from '~/types';
 import { MCPAuthenticationRefreshError, MCPAuthenticationRejectedError } from '~/mcp/errors';
+import { OpenIDExchangedTokenRequiredError } from '~/mcp/exchanged';
 import { ErrorController, createCustomError } from './error';
 import { OpenIDReauthRequiredError } from '~/utils/oidc';
 
@@ -267,6 +268,20 @@ describe('ErrorController', () => {
         message: error.message,
         retryable: true,
         connectionRefreshed: true,
+      });
+    });
+  });
+
+  describe('OpenIDExchangedTokenRequiredError handling', () => {
+    it('answers with the stable sign-in code without triggering the app-auth 401 retry', () => {
+      const error = new OpenIDExchangedTokenRequiredError();
+
+      ErrorController(error, mockReq, mockRes, mockNext);
+
+      expect(mockRes.status).toHaveBeenCalledWith(403);
+      expect(mockRes.send).toHaveBeenCalledWith({
+        code: 'tool_access_expired',
+        message: 'Your access to this tool expired. Sign in again to keep using it.',
       });
     });
   });

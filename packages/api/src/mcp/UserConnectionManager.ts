@@ -1,5 +1,6 @@
 import { logger } from '@librechat/data-schemas';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
+import type { OpenIDExchangedTokenLoader } from '~/mcp/exchanged';
 import type * as t from './types';
 import {
   applyRequestHeaders,
@@ -24,6 +25,7 @@ import { ConnectionsRepository } from '~/mcp/ConnectionsRepository';
 import { MCPConnectionFactory } from '~/mcp/MCPConnectionFactory';
 import { MCPAuthenticationRejectedError } from '~/mcp/errors';
 import { processMCPEnv, isPluginSourced } from '~/utils/env';
+import { attachOpenIDExchangedToken } from '~/mcp/exchanged';
 import { OAuthLifecycleRelay } from '~/mcp/oauth/pending';
 import { preProcessGraphTokens } from '~/utils/graph';
 import { detectOAuthRequirement } from '~/mcp/oauth';
@@ -84,6 +86,9 @@ const MAX_TEARDOWN_RESTARTS = 3;
 export abstract class UserConnectionManager {
   // Connections shared by all users.
   public appConnections: ConnectionsRepository | null = null;
+  /** Host-supplied reader for the user's exchanged OpenID token; unset leaves servers that
+   *  need it unable to connect, never connected without it. */
+  protected loadOpenIDExchangedToken?: OpenIDExchangedTokenLoader;
   // Connections per userId -> serverName -> connection
   protected userConnections: Map<string, Map<string, MCPConnection>> = new Map();
   /** Last activity timestamp for users (not per server) */
@@ -760,6 +765,7 @@ export abstract class UserConnectionManager {
 
     try {
       signal?.throwIfAborted();
+      await attachOpenIDExchangedToken({ user, config, load: this.loadOpenIDExchangedToken });
       const bearerConfig =
         directBearerResolvedConfig ??
         (await resolveDirectOpenIDBearerConfig({

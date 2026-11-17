@@ -251,6 +251,17 @@ describe('Error — reader-facing provider and fallback copy', () => {
     expectReadable();
   });
 
+  it('asks the reader to sign in again when a tool needs a renewed sign-in', () => {
+    renderError({
+      status: 403,
+      code: ErrorTypes.TOOL_ACCESS_EXPIRED,
+      error: 'Your access to this tool expired. Sign in again to keep using it.',
+    });
+
+    expect(screen.getByText(catalog.com_error_tool_access_expired)).toBeInTheDocument();
+    expectReadable();
+  });
+
   it('keeps fallback prose when an older client cannot recognize the server error type', () => {
     const prose =
       'The model provider closed the connection before the response finished. Try again.';

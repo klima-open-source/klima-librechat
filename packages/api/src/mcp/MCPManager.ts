@@ -10,6 +10,7 @@ import type {
   UpstreamTokenProvider,
   UpstreamTokenProviderResolver,
 } from '~/mcp/oauth/obo';
+import type { OpenIDExchangedTokenLoader } from './exchanged';
 import type { AuthIdentityContext } from '~/utils/identity';
 import type { GraphTokenResolver } from '~/utils/graph';
 import type { FlowStateManager } from '~/flow/manager';
@@ -41,6 +42,7 @@ import { UserConnectionManager } from './UserConnectionManager';
 import { ConnectionsRepository } from './ConnectionsRepository';
 import { MCPConnectionFactory } from './MCPConnectionFactory';
 import { processMCPEnv, isPluginSourced } from '~/utils/env';
+import { attachOpenIDExchangedToken } from './exchanged';
 import { OAuthLifecycleRelay } from './oauth/pending';
 import { preProcessGraphTokens } from '~/utils/graph';
 import { isOwnedAbortError } from '~/utils/errors';
@@ -123,12 +125,14 @@ export class MCPManager extends UserConnectionManager {
   constructor(
     catalogRecoveryMaxStateEntries?: number,
     catalogRecoveryMaxDetachedDiscoveries?: number,
+    loadOpenIDExchangedToken?: OpenIDExchangedTokenLoader,
   ) {
     super();
     this.catalogRecoveryTracker = new MCPServerCatalogRecoveryTracker(
       catalogRecoveryMaxStateEntries,
       catalogRecoveryMaxDetachedDiscoveries,
     );
+    this.loadOpenIDExchangedToken = loadOpenIDExchangedToken;
   }
 
   /** Creates and initializes the singleton MCPManager instance */
@@ -137,12 +141,15 @@ export class MCPManager extends UserConnectionManager {
     options?: {
       catalogRecoveryMaxStateEntries?: number;
       catalogRecoveryMaxDetachedDiscoveries?: number;
+      /** Reads the user's exchanged OpenID token for `{{LIBRECHAT_OPENID_EXCHANGED_TOKEN}}`. */
+      loadOpenIDExchangedToken?: OpenIDExchangedTokenLoader;
     },
   ): Promise<MCPManager> {
     if (MCPManager.instance) throw new Error('MCPManager has already been initialized.');
     MCPManager.instance = new MCPManager(
       options?.catalogRecoveryMaxStateEntries,
       options?.catalogRecoveryMaxDetachedDiscoveries,
+      options?.loadOpenIDExchangedToken,
     );
     await MCPManager.instance.initialize(configs);
     return MCPManager.instance;
@@ -463,6 +470,11 @@ export class MCPManager extends UserConnectionManager {
       return { tools: null, oauthRequired: false, oauthUrl: null };
     }
 
+    await attachOpenIDExchangedToken({
+      user,
+      config: catalogConfig,
+      load: this.loadOpenIDExchangedToken,
+    });
     const { allowedDomains, allowedAddresses, useSSRFProtection } =
       await registry.resolveAllowlists({ userId: user?.id, role: user?.role });
     await this.assertResolvedRuntimeConfigAllowed({
@@ -1285,6 +1297,11 @@ Please follow these instructions when using tools from the respective MCP server
                 graphTokenResolver,
                 scopes: process.env.GRAPH_API_SCOPES,
               });
+        await attachOpenIDExchangedToken({
+          user,
+          config: rawConfig,
+          load: this.loadOpenIDExchangedToken,
+        });
         const directBearerRecovery = usesDirectOpenIDBearerRecovery(rawConfig);
         const bearerConfig = await resolveDirectOpenIDBearerConfig({
           config: graphProcessedConfig,

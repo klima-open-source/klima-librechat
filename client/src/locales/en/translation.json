@@ -611,6 +611,7 @@
   "com_error_token_balance_help": "If you need something urgently, reach out to your trusted developer",
   "com_error_token_balance_refill": "Your credits renew automatically on {{0}}.",
   "com_error_token_balance_prompt": "Prompt size: {{0}} tokens.",
+  "com_error_tool_access_expired": "Your access to this tool expired. Sign in again to keep using it.",
   "com_error_tool_call_limit": "You have reached the tool call limit. Wait a moment and try again.",
   "com_error_tts_limit": "You have reached the text-to-speech limit of {{0}} requests per {{1}}.",
   "com_error_unknown": "This response failed and the provider did not report a reason.",

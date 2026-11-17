@@ -3119,6 +3119,17 @@ export const openIdDiscoverySchema = z.object({
 
 export type TOpenIdDiscoveryConfig = z.infer<typeof openIdDiscoverySchema>;
 
+/**
+ * RFC 8693 token exchange performed once at OpenID login. The exchanged token is stored per user
+ * and only reaches config-defined MCP servers through `{{LIBRECHAT_OPENID_EXCHANGED_TOKEN}}`.
+ */
+export const openIdTokenExchangeSchema = z.object({
+  enabled: z.boolean().default(false),
+  audience: z.string().min(1).default('legacy-api'),
+});
+
+export type TOpenIdTokenExchangeConfig = z.infer<typeof openIdTokenExchangeSchema>;
+
 /** Maximum CAS attempts per ACL document, including the initial attempt. */
 export const permissionWriteAttemptsSchema = z.number().int().min(1).max(100).default(3);
 
@@ -3217,6 +3228,7 @@ export const configSchema = z.object({
       oauthStateTtlMs: z.number().int().min(60_000).max(3_600_000).optional(),
       /** OpenID discovery retries; an unset field falls back to its `OPENID_DISCOVERY_RETRY_*` env var, then the schema default. */
       openidDiscovery: openIdDiscoverySchema.partial().optional(),
+      openidTokenExchange: openIdTokenExchangeSchema.optional(),
     })
     .default({ socialLogins: defaultSocialLogins }),
   balance: balanceSchema.optional(),
@@ -3945,6 +3957,10 @@ export enum ErrorTypes {
    * Required CodeAPI resources could not be restored before model invocation.
    */
   RESOURCE_RECOVERY_REQUIRED = 'resource_recovery_required',
+  /**
+   * A tool server needs the user's exchanged OpenID token, which is missing or expired.
+   */
+  TOOL_ACCESS_EXPIRED = 'tool_access_expired',
   /**
    * Agent selected a stateful Code API workspace scope disabled by the deployment.
    */

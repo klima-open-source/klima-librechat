@@ -4088,6 +4088,7 @@ describe('ResumableAgentController resume metadata', () => {
       'Please sign in again to continue using this MCP server.',
     ),
     new (jest.requireActual('@librechat/api').MCPAuthenticationRejectedError)('private-mcp', false),
+    new (jest.requireActual('@librechat/api').OpenIDExchangedTokenRequiredError)(),
     new (jest.requireActual('@librechat/api').MCPAuthenticationRefreshError)(
       new Error('upstream refresh unavailable'),
     ),

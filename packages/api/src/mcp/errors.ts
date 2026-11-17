@@ -5,6 +5,7 @@ import { McpError } from '@modelcontextprotocol/sdk/types.js';
 import { SseError } from '@modelcontextprotocol/sdk/client/sse.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { OpenIDExchangedTokenRequiredError } from './exchanged';
 import { OpenIDReauthRequiredError } from '~/utils/oidc';
 import { OboTokenResolutionError } from './oauth/obo';
 import { isOwnedAbortError } from '~/utils/errors';
@@ -16,7 +17,8 @@ export function isMCPInitializationError(error: unknown, signal?: AbortSignal): 
     error instanceof MCPAuthenticationRejectedError ||
     error instanceof MCPAuthenticationRefreshError ||
     error instanceof OboTokenResolutionError ||
-    error instanceof OpenIDReauthRequiredError
+    error instanceof OpenIDReauthRequiredError ||
+    error instanceof OpenIDExchangedTokenRequiredError
   );
 }
 
