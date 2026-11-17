@@ -1,9 +1,12 @@
+import { useState } from 'react';
+
 import type { PrincipalKind, PrincipalRef } from './types';
 import type { SelectedUser } from '../users/types';
 import type { UserSearch } from '../users/search';
 import type { Directory } from './directory';
+import type { ApiError } from '../api';
 
-import { buttonSecondary, inputField, ErrorNote, Empty, Loading } from '../ui';
+import { buttonPrimary, buttonSecondary, inputField, ErrorNote, Empty, Loading } from '../ui';
 import { SearchPanel } from '../users/search';
 
 interface PrincipalPickerProps {
@@ -76,6 +79,59 @@ const RoleSelect = ({
   );
 };
 
+/** Creates a local group and selects it, so a new group can get its override right away. */
+const CreateGroupForm = ({
+  directory,
+  onSelect,
+}: {
+  directory: Directory;
+  onSelect: (principal: PrincipalRef) => void;
+}) => {
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  const submit = async (): Promise<void> => {
+    setSaving(true);
+    setError(null);
+    const result = await directory.createGroup(name.trim());
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setName('');
+    onSelect({ kind: 'group', id: result.data.group._id, label: result.data.group.name });
+  };
+
+  return (
+    <form
+      className="mt-3 space-y-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <label className="block text-sm font-medium text-slate-700" htmlFor="config-new-group">
+        New group
+      </label>
+      <div className="flex gap-2">
+        <input
+          id="config-new-group"
+          className={inputField}
+          value={name}
+          placeholder="e.g. Solarverso"
+          onChange={(event) => setName(event.target.value)}
+        />
+        <button type="submit" className={buttonPrimary} disabled={saving || !name.trim()}>
+          {saving ? 'Creating…' : 'Create group'}
+        </button>
+      </div>
+      {error ? <ErrorNote error={error} label="Could not create the group." /> : null}
+    </form>
+  );
+};
+
 const GroupSelect = ({
   directory,
   selected,
@@ -96,7 +152,12 @@ const GroupSelect = ({
   }
 
   if (groups.data.groups.length === 0) {
-    return <Empty>No groups exist yet.</Empty>;
+    return (
+      <div>
+        <Empty>No groups exist yet.</Empty>
+        <CreateGroupForm directory={directory} onSelect={onSelect} />
+      </div>
+    );
   }
 
   return (
@@ -129,6 +190,7 @@ const GroupSelect = ({
           Showing {groups.data.groups.length} of {groups.data.total} groups.
         </p>
       ) : null}
+      <CreateGroupForm directory={directory} onSelect={onSelect} />
     </div>
   );
 };

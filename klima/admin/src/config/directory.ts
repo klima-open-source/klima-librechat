@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import type { AdminGroupsResponse, AdminRolesResponse, PrincipalKind } from './types';
-import type { ApiClient, RemoteState } from '../api';
+import type { AdminGroup, AdminGroupsResponse, AdminRolesResponse, PrincipalKind } from './types';
+import type { ApiClient, ApiResult, RemoteState } from '../api';
 
 export interface Directory {
   roles: RemoteState<AdminRolesResponse>;
   groups: RemoteState<AdminGroupsResponse>;
   reload: () => void;
+  /** `POST /api/admin/groups`; reloads the directory when the group is created. */
+  createGroup: (name: string) => Promise<ApiResult<{ group: AdminGroup }>>;
   /** A readable name for a stored `principalId`, or null when the principal is unknown here. */
   labelFor: (kind: PrincipalKind, id: string) => string | null;
 }
@@ -81,5 +83,19 @@ export const useDirectory = (client: ApiClient): Directory => {
 
   const reload = useCallback((): void => setGeneration((value) => value + 1), []);
 
-  return { roles, groups, reload, labelFor };
+  const createGroup = useCallback(
+    async (name: string): Promise<ApiResult<{ group: AdminGroup }>> => {
+      const result = await client.post<{ group: AdminGroup }, { name: string }>(
+        '/api/admin/groups',
+        { name },
+      );
+      if (result.ok) {
+        reload();
+      }
+      return result;
+    },
+    [client, reload],
+  );
+
+  return { roles, groups, reload, labelFor, createGroup };
 };
