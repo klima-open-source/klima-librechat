@@ -8,6 +8,7 @@ const {
   resolveAppConfigForUser,
   getOpenIdIssuer,
   isEnabled,
+  syncOpenIdAccessGroups,
 } = require('@librechat/api');
 const { resizeAvatar } = require('~/server/services/Files/images/avatar');
 const { getAppConfig } = require('~/server/services/Config');
@@ -93,6 +94,7 @@ jest.mock('@librechat/api', () => {
         : params;
     }),
     resolveAppConfigForUser: jest.fn(async (_getAppConfig, _user) => ({})),
+    syncOpenIdAccessGroups: jest.fn(),
   };
 });
 jest.mock('~/models', () => ({
@@ -754,6 +756,25 @@ describe('setupOpenId', () => {
     expect(details.message).toBe('You must have "requiredRole" role to log in.');
     expect(logger.error).toHaveBeenCalledWith(
       expect.stringContaining("Key 'roles' not found in userinfo token!"),
+    );
+  });
+
+  it('syncs access groups from the userinfo claim after saving the user', async () => {
+    const openidGroupSync = { claim: 'accesses', groups: { solarverso_mcp: 'Solarverso' } };
+    getAppConfig.mockResolvedValueOnce({ registration: { openidGroupSync } });
+    require('openid-client').fetchUserInfo.mockResolvedValueOnce({ accesses: ['solarverso_mcp'] });
+
+    await validate(tokenset);
+
+    expect(syncOpenIdAccessGroups).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: expect.objectContaining({ _id: 'newUserId' }),
+        userinfo: expect.objectContaining({ accesses: ['solarverso_mcp'] }),
+        config: openidGroupSync,
+      }),
+    );
+    expect(updateUser.mock.invocationCallOrder[0]).toBeLessThan(
+      syncOpenIdAccessGroups.mock.invocationCallOrder[0],
     );
   });
 

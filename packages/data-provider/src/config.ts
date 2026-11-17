@@ -3130,6 +3130,14 @@ export const openIdTokenExchangeSchema = z.object({
 
 export type TOpenIdTokenExchangeConfig = z.infer<typeof openIdTokenExchangeSchema>;
 
+/** Maps SSO access codes in a userinfo claim to existing local groups kept in sync at login. */
+export const openIdGroupSyncSchema = z.object({
+  claim: z.string().min(1).default('accesses'),
+  groups: z.record(z.string().min(1)),
+});
+
+export type TOpenIdGroupSyncConfig = z.infer<typeof openIdGroupSyncSchema>;
+
 /** Maximum CAS attempts per ACL document, including the initial attempt. */
 export const permissionWriteAttemptsSchema = z.number().int().min(1).max(100).default(3);
 
@@ -3229,6 +3237,7 @@ export const configSchema = z.object({
       /** OpenID discovery retries; an unset field falls back to its `OPENID_DISCOVERY_RETRY_*` env var, then the schema default. */
       openidDiscovery: openIdDiscoverySchema.partial().optional(),
       openidTokenExchange: openIdTokenExchangeSchema.optional(),
+      openidGroupSync: openIdGroupSyncSchema.optional(),
     })
     .default({ socialLogins: defaultSocialLogins }),
   balance: balanceSchema.optional(),

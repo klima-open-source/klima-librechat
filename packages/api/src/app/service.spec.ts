@@ -1215,6 +1215,20 @@ describe('createAppConfigService', () => {
       expect(deps.getApplicableConfigs).toHaveBeenCalledTimes(3);
     });
 
+    it('clears only the given user override caches', async () => {
+      const deps = createDeps();
+      const { getAppConfig, clearOverrideCache } = createAppConfigService(deps);
+      const read = (userId: string) => getAppConfig({ role: 'USER', userId });
+
+      await read('user-a');
+      await read('user-b');
+      await clearOverrideCache(undefined, 'user-a');
+      await read('user-a');
+      await read('user-b');
+
+      expect(deps.getApplicableConfigs).toHaveBeenCalledTimes(3);
+    });
+
     it('does not clear base config', async () => {
       const deps = createDeps();
       const { getAppConfig, clearOverrideCache } = createAppConfigService(deps);

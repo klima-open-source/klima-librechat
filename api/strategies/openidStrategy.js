@@ -20,6 +20,7 @@ const {
   isEmailDomainAllowed,
   getAvatarFileStrategy,
   resolveAppConfigForUser,
+  syncOpenIdAccessGroups,
   getOpenIdProxyDispatcher,
   getOpenIdRoleSyncOptions,
   getOpenIdRolesForOpenIdSync,
@@ -30,8 +31,16 @@ const {
 } = require('@librechat/api');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
 const { resizeAvatar } = require('~/server/services/Files/images/avatar');
-const { findUser, createUser, updateUser, findRolesByNames } = require('~/models');
-const { getAppConfig } = require('~/server/services/Config');
+const {
+  findUser,
+  createUser,
+  updateUser,
+  addUserToGroup,
+  findRolesByNames,
+  findGroupByQuery,
+  removeUserFromGroup,
+} = require('~/models');
+const { getAppConfig, clearOverrideCache } = require('~/server/services/Config');
 const getLogStores = require('~/cache/getLogStores');
 
 /**
@@ -807,6 +816,15 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
   }
 
   user = await updateUser(user._id, user);
+  await syncOpenIdAccessGroups({
+    user,
+    userinfo,
+    config: appConfig?.registration?.openidGroupSync,
+    findGroupByQuery,
+    addUserToGroup,
+    removeUserFromGroup,
+    clearUserConfigCache: clearOverrideCache,
+  });
 
   logger.info(
     `[openidStrategy] login success openidId: ${user.openidId} | email: ${user.email} | username: ${user.username} `,

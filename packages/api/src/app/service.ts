@@ -277,7 +277,7 @@ function overrideCacheKey(
 export function createAppConfigService(deps: AppConfigServiceDeps): {
   getAppConfig: (options?: GetAppConfigOptions) => Promise<AppConfig>;
   clearAppConfigCache: () => Promise<void>;
-  clearOverrideCache: (tenantId?: string) => Promise<void>;
+  clearOverrideCache: (tenantId?: string, userId?: string) => Promise<void>;
 } {
   const {
     loadBaseConfig,
@@ -536,9 +536,9 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
   /**
    * Clear per-principal override caches. When `tenantId` is provided, only caches
    * matching `_OVERRIDE_:${tenantId}:tenant:*` are deleted. When omitted, ALL override
-   * caches are cleared.
+   * caches are cleared. When `userId` is provided, only that user's entries are deleted.
    */
-  async function clearOverrideCache(tenantId?: string): Promise<void> {
+  async function clearOverrideCache(tenantId?: string, userId?: string): Promise<void> {
     const namespace = cacheKeys.APP_CONFIG;
     const overrideSegment = tenantId ? `_OVERRIDE_:${tenantId}:tenant:` : '_OVERRIDE_:';
 
@@ -555,7 +555,10 @@ export function createAppConfigService(deps: AppConfigServiceDeps): {
       const namespacedPrefix = `${namespace}:${overrideSegment}`;
       const toDelete: string[] = [];
       for (const key of store.keys()) {
-        if (key.startsWith(namespacedPrefix)) {
+        if (
+          key.startsWith(namespacedPrefix) &&
+          (!userId || key.includes(`:${userId}:tenant-v1:`))
+        ) {
           toDelete.push(key.slice(namespace.length + 1));
         }
       }
