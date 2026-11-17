@@ -1,4 +1,5 @@
 import { get } from 'lodash';
+import { openIdGroupSyncSchema } from 'librechat-data-provider';
 import { logger, tenantStorage } from '@librechat/data-schemas';
 import type { TOpenIdGroupSyncConfig } from 'librechat-data-provider';
 import { getSafeErrorMetadata } from '~/utils/errors';
@@ -8,7 +9,8 @@ type SyncedGroup = { _id: { toString(): string }; memberIds?: string[] };
 export interface OpenIdGroupSyncParams {
   user: { _id: { toString(): string }; idOnTheSource?: string | null; tenantId?: string };
   userinfo: unknown;
-  config?: TOpenIdGroupSyncConfig;
+  /** As loaded from librechat.yaml: schema defaults (e.g. `claim`) are not applied yet. */
+  config?: Partial<TOpenIdGroupSyncConfig>;
   findGroupByQuery: (filter: Record<string, unknown>) => Promise<SyncedGroup | null>;
   addUserToGroup: (userId: string, groupId: string) => Promise<unknown>;
   removeUserFromGroup: (userId: string, groupId: string) => Promise<unknown>;
@@ -62,8 +64,9 @@ export async function syncOpenIdAccessGroups(params: OpenIdGroupSyncParams): Pro
   if (!config) {
     return;
   }
-  const run = () => syncGroups(params, config);
   try {
+    const parsed = openIdGroupSyncSchema.parse(config);
+    const run = () => syncGroups(params, parsed);
     await (user.tenantId ? tenantStorage.run({ tenantId: user.tenantId }, run) : run());
   } catch (error) {
     logger.error('[openidGroupSync] Group sync failed', getSafeErrorMetadata(error));
