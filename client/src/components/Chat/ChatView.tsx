@@ -4,7 +4,7 @@ import { useRecoilValue } from 'recoil';
 import { useForm } from 'react-hook-form';
 import { Spinner } from '@librechat/client';
 import { useParams } from 'react-router-dom';
-import { Constants, ContentTypes, buildTree } from 'librechat-data-provider';
+import { Constants, buildTree } from 'librechat-data-provider';
 import type { TChatProject } from 'librechat-data-provider';
 import type { ChatFormValues } from '~/common';
 import {
@@ -23,6 +23,7 @@ import ApprovalProvider from './Messages/Content/ApprovalContext';
 import ConversationStarters from './Input/ConversationStarters';
 import { pendingApprovalActionFamily } from './approval/state';
 import { useGetMessagesByConvoId } from '~/data-provider';
+import { endedInError } from '~/components/Mascot/state';
 import Footer, { useConfiguredFooter } from './Footer';
 import { AskAnswerHostProvider } from './ask/state';
 import MessagesView from './Messages/MessagesView';
@@ -116,14 +117,11 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
   useQueueDrain(index, conversationId, chatHelpers.ask, revealQueuedTurn);
 
   const lastMessage = messages?.at(-1);
-  const lastMessageFailed =
-    lastMessage?.error === true ||
-    lastMessage?.content?.some((part) => part.type === ContentTypes.ERROR) === true;
   const lastUserMessage = messages?.findLast((message) => message.isCreatedByUser);
   const mascot = (
     <Mascot
       isSubmitting={isSubmitting}
-      failedMessageId={lastMessageFailed ? lastMessage?.messageId : null}
+      failedMessageId={endedInError(lastMessage) ? lastMessage?.messageId : null}
       lastUserText={lastUserMessage?.text}
     />
   );

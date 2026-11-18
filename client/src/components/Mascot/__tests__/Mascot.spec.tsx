@@ -2,7 +2,9 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { RATING_REACTIONS, curiousAtom, reactionAtom } from '../state';
+import { ContentTypes } from 'librechat-data-provider';
+import type { TMessage } from 'librechat-data-provider';
+import { RATING_REACTIONS, curiousAtom, endedInError, reactionAtom } from '../state';
 import { EXPRESSIONS } from '../types';
 import Mascot from '../index';
 
@@ -224,6 +226,25 @@ describe('Mascot', () => {
 
       expect(getDog()).not.toHaveAttribute('data-blinking');
       expect(getDog().style.getPropertyValue('--mascot-eyes-x')).toBe('');
+    });
+  });
+
+  describe('endedInError', () => {
+    const message = (content: unknown[], error?: boolean) =>
+      ({ messageId: 'm', content, error }) as unknown as TMessage;
+
+    it('tolerates the empty slots a streamed response has while in flight', () => {
+      const sparse: unknown[] = [];
+      sparse[2] = { type: ContentTypes.TEXT, text: 'hi' };
+
+      expect(endedInError(message(sparse))).toBe(false);
+      expect(endedInError(message([undefined, { type: ContentTypes.TEXT }]))).toBe(false);
+    });
+
+    it('detects an error part or the error flag', () => {
+      expect(endedInError(message([undefined, { type: ContentTypes.ERROR }]))).toBe(true);
+      expect(endedInError(message([], true))).toBe(true);
+      expect(endedInError(undefined)).toBe(false);
     });
   });
 });

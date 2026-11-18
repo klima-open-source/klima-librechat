@@ -1,4 +1,6 @@
 import { atom, useSetAtom } from 'jotai';
+import { ContentTypes } from 'librechat-data-provider';
+import type { TMessage } from 'librechat-data-provider';
 import type { ExpressionStep } from './types';
 import { EXPRESSIONS } from './types';
 
@@ -24,3 +26,9 @@ export const RATING_REACTIONS: Record<'thumbsUp' | 'thumbsDown', ExpressionStep[
   thumbsUp: [{ expression: EXPRESSIONS.HAPPY, durationMs: 1_800 }],
   thumbsDown: [{ expression: EXPRESSIONS.SAD, durationMs: 2_500 }],
 };
+
+/** The message ended in an error (the dog gets sad). Streamed `content` is filled by index, so
+ * it can hold empty slots while a response is in flight. */
+export const endedInError = (message?: TMessage) =>
+  message?.error === true ||
+  message?.content?.some((part) => part?.type === ContentTypes.ERROR) === true;
