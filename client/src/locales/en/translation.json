@@ -1768,6 +1768,7 @@
   "com_ui_manage_web_search_api_keys": "Manage Web Search API Keys",
   "com_ui_marketplace": "Marketplace",
   "com_ui_marketplace_allow_use": "Allow using Marketplace",
+  "com_ui_mascot_pet": "Pet Roma",
   "com_ui_max": "Max",
   "com_ui_max_favorites_reached": "Maximum pinned items reached ({{0}}). Unpin an item to add more.",
   "com_ui_max_favorites_reached_items": "Maximum favorites reached ({{0}}). Remove a favorite to add more.",

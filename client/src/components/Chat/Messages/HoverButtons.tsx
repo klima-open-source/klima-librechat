@@ -13,6 +13,7 @@ import {
 } from '@librechat/client';
 import type { TConversation, TMessage, TFeedback } from 'librechat-data-provider';
 import { useMessagesIsSubmitting, useOptionalMessagesOperations } from '~/Providers';
+import { RATING_REACTIONS, useReact } from '~/components/Mascot/state';
 import { useGenerationsByLatest, useLocalize } from '~/hooks';
 import { hasEditablePart } from './Content/editableParts';
 import { revealedQueuedTurnFamily } from '~/store/steer';
@@ -141,6 +142,16 @@ const HoverButtons = ({
   handleFeedback,
 }: THoverButtons) => {
   const localize = useLocalize();
+  const reactInMascot = useReact();
+  const handleRatedFeedback = useCallback(
+    (args: { feedback: TFeedback | undefined }) => {
+      handleFeedback?.(args);
+      if (args.feedback) {
+        reactInMascot(RATING_REACTIONS[args.feedback.rating]);
+      }
+    },
+    [handleFeedback, reactInMascot],
+  );
   /** Subscribed here rather than passed down: a send toggles the rerun controls on
    *  every row, and only this toolbar has to re-render for it. */
   const isSubmitting = useMessagesIsSubmitting();
@@ -295,7 +306,11 @@ const HoverButtons = ({
 
       {/* Feedback Buttons */}
       {!error && !isActiveStreamingMessage && !isCreatedByUser && handleFeedback != null && (
-        <Feedback handleFeedback={handleFeedback} feedback={message.feedback} isLast={isLast} />
+        <Feedback
+          handleFeedback={handleRatedFeedback}
+          feedback={message.feedback}
+          isLast={isLast}
+        />
       )}
 
       {/* Regenerate Button */}
