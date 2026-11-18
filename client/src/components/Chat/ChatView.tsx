@@ -4,7 +4,7 @@ import { useRecoilValue } from 'recoil';
 import { useForm } from 'react-hook-form';
 import { Spinner } from '@librechat/client';
 import { useParams } from 'react-router-dom';
-import { Constants, buildTree } from 'librechat-data-provider';
+import { Constants, ContentTypes, buildTree } from 'librechat-data-provider';
 import type { TChatProject } from 'librechat-data-provider';
 import type { ChatFormValues } from '~/common';
 import {
@@ -27,6 +27,7 @@ import Footer, { useConfiguredFooter } from './Footer';
 import { AskAnswerHostProvider } from './ask/state';
 import MessagesView from './Messages/MessagesView';
 import Presentation from './Presentation';
+import Mascot from '~/components/Mascot';
 import ChatForm from './Input/ChatForm';
 import { TraceSurface } from './Trace';
 import Landing from './Landing';
@@ -114,6 +115,12 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
   // Auto-send queued follow-up messages once a run finishes cleanly.
   useQueueDrain(index, conversationId, chatHelpers.ask, revealQueuedTurn);
 
+  const lastMessage = messages?.at(-1);
+  const lastMessageFailed =
+    lastMessage?.error === true ||
+    lastMessage?.content?.some((part) => part.type === ContentTypes.ERROR) === true;
+  const lastUserMessage = messages?.findLast((message) => message.isCreatedByUser);
+
   let content: JSX.Element | null | undefined;
   const isLandingPage =
     (!messagesTree || messagesTree.length === 0) &&
@@ -170,7 +177,13 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
                       parentConversationId={parentConversationId}
                       readOnly={isSubagentThreadReadOnly}
                     />
-                    <>
+                    <div className="relative flex min-h-0 flex-1 flex-col">
+                      <Mascot
+                        isLanding={isLandingPage}
+                        isSubmitting={isSubmitting}
+                        failedMessageId={lastMessageFailed ? lastMessage?.messageId : null}
+                        lastUserText={lastUserMessage?.text}
+                      />
                       <div
                         className={cn(
                           'flex flex-col',
@@ -227,7 +240,7 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
                         </div>
                       </div>
                       {isLandingPage && <Footer />}
-                    </>
+                    </div>
                   </TraceSurface>
                 </Presentation>
               </QueuedTurnPortalProvider>

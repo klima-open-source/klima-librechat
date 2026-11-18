@@ -90,7 +90,7 @@ function MessagesViewContent({
           >
             <div
               ref={contentRef}
-              className="flex flex-col pb-9 pt-14"
+              className="flex flex-col pb-9 pl-12 pt-14 lg:px-12"
               style={
                 steerOverlayHeight > 0
                   ? { paddingBottom: `calc(2.25rem + ${steerOverlayHeight}px)` }

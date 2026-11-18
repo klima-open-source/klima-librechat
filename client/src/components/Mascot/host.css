@@ -1,0 +1,41 @@
+/* Placement of the mascot inside the chat container: centered while the chat is empty,
+   then a small companion in the left gutter reserved beside the message column. */
+.mascot-host {
+  position: absolute;
+  z-index: 20;
+  pointer-events: none;
+  width: 8rem;
+  top: var(--mascot-landing-top, max(1rem, calc(50% - 16rem)));
+  left: 50%;
+  transform: translateX(-50%);
+  transition:
+    top 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    left 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mascot-host[data-placement='corner'] {
+  width: 2.75rem;
+  top: 3.5rem;
+  /* Left gutter of the message column (see MessagesView), beside the first message */
+  left: max(0.25rem, calc(50% - 24rem - 3rem));
+  transform: none;
+}
+
+@media (min-width: 1280px) {
+  .mascot-host[data-placement='corner'] {
+    left: max(0.25rem, calc(50% - 28rem - 3rem));
+  }
+}
+
+.mascot-host__dog {
+  width: 100%;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot-host {
+    transition: none;
+  }
+}

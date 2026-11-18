@@ -1,4 +1,5 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
+import { useSetAtom } from 'jotai';
 import { EModelEndpoint, Constants } from 'librechat-data-provider';
 import {
   useGetAssistantDocsQuery,
@@ -7,6 +8,7 @@ import {
 } from '~/data-provider';
 import { useChatContext, useAgentsMapContext, useAssistantsMapContext } from '~/Providers';
 import { getIconEndpoint, getEntity, getModelSpec } from '~/utils';
+import { curiousAtom } from '~/components/Mascot/state';
 import { useSubmitMessage } from '~/hooks';
 
 const ConversationStarters = () => {
@@ -61,6 +63,8 @@ const ConversationStarters = () => {
     return documentsMap.get(entity?.id ?? '')?.conversation_starters ?? [];
   }, [documentsMap, isAgent, entity, modelSpec]);
 
+  const setCurious = useSetAtom(curiousAtom);
+  useEffect(() => () => setCurious(false), [setCurious]);
   const { submitMessage } = useSubmitMessage();
   const sendConversationStarter = useCallback(
     (text: string) => submitMessage({ text }),
@@ -79,6 +83,8 @@ const ConversationStarters = () => {
           <button
             key={index}
             onClick={() => sendConversationStarter(text)}
+            onPointerEnter={() => setCurious(true)}
+            onPointerLeave={() => setCurious(false)}
             style={{ animationDelay: `${index * 75}ms`, animationFillMode: 'backwards' }}
             className="flex max-w-[16rem] cursor-pointer items-center justify-center rounded-2xl border border-border-medium bg-surface-secondary px-4 py-2.5 text-center text-sm text-text-secondary shadow-sm transition-colors duration-200 fade-in hover:border-border-heavy hover:bg-surface-tertiary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring-primary"
           >
