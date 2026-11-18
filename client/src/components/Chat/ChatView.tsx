@@ -120,6 +120,13 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
     lastMessage?.error === true ||
     lastMessage?.content?.some((part) => part.type === ContentTypes.ERROR) === true;
   const lastUserMessage = messages?.findLast((message) => message.isCreatedByUser);
+  const mascot = (
+    <Mascot
+      isSubmitting={isSubmitting}
+      failedMessageId={lastMessageFailed ? lastMessage?.messageId : null}
+      lastUserText={lastUserMessage?.text}
+    />
+  );
 
   let content: JSX.Element | null | undefined;
   const isLandingPage =
@@ -139,9 +146,9 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
   } else if ((isLoading || isNavigating) && !isLandingPage) {
     content = <LoadingSpinner />;
   } else if (!isLandingPage) {
-    content = <MessagesView messagesTree={messagesTree} messages={messages} />;
+    content = <MessagesView messagesTree={messagesTree} messages={messages} mascot={mascot} />;
   } else {
-    content = <Landing centerFormOnLanding={centerFormOnLanding} />;
+    content = <Landing centerFormOnLanding={centerFormOnLanding} mascot={mascot} />;
   }
 
   const chatFormPlaceholder =
@@ -177,13 +184,8 @@ function ChatView({ index = 0, project }: { index?: number; project?: TChatProje
                       parentConversationId={parentConversationId}
                       readOnly={isSubagentThreadReadOnly}
                     />
-                    <div className="relative flex min-h-0 flex-1 flex-col">
-                      <Mascot
-                        isLanding={isLandingPage}
-                        isSubmitting={isSubmitting}
-                        failedMessageId={lastMessageFailed ? lastMessage?.messageId : null}
-                        lastUserText={lastUserMessage?.text}
-                      />
+                    {/* `isolate` keeps the mascot's behind-the-content glide inside the chat. */}
+                    <div className="relative isolate flex min-h-0 flex-1 flex-col">
                       <div
                         className={cn(
                           'flex flex-col',

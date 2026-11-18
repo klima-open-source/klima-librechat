@@ -4,13 +4,13 @@ import { HatGlasses } from 'lucide-react';
 import { easings } from '@react-spring/web';
 import { EModelEndpoint } from 'librechat-data-provider';
 import { BirthdayIcon, TooltipAnchor, SplitText } from '@librechat/client';
+import type { ReactNode } from 'react';
 import { useChatContext, useAgentsMapContext, useAssistantsMapContext } from '~/Providers';
 import Description, { isHtmlDescription } from '~/components/ui/Description';
 import { useGetEndpointsQuery, useGetStartupConfig } from '~/data-provider';
 import { getIconEndpoint, getEntity, getModelSpec } from '~/utils';
 import { useLocalize, useAuthContext, useGreeting } from '~/hooks';
 import AgentContact from '~/components/Agents/AgentContact';
-import ConvoIcon from '~/components/Endpoints/ConvoIcon';
 import temporaryStore from '~/store/temporary';
 
 const containerClassName =
@@ -37,7 +37,13 @@ function getTextSizeClass(text: string | undefined | null) {
   return 'text-lg sm:text-base';
 }
 
-export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: boolean }) {
+export default function Landing({
+  centerFormOnLanding,
+  mascot,
+}: {
+  centerFormOnLanding: boolean;
+  mascot?: ReactNode;
+}) {
   const { conversation } = useChatContext();
   const agentsMap = useAgentsMapContext();
   const assistantMap = useAssistantsMapContext();
@@ -138,37 +144,39 @@ export default function Landing({ centerFormOnLanding }: { centerFormOnLanding: 
     <div
       className={`flex h-full transform-gpu flex-col items-center justify-center pb-16 transition-all duration-200 ${centerFormOnLanding ? 'max-h-full sm:max-h-0' : 'max-h-full'} ${getDynamicMargin}`}
     >
-      <div ref={contentRef} data-mascot-anchor className="flex flex-col items-center gap-0 p-2">
+      <div ref={contentRef} className="relative flex flex-col items-center gap-0 p-2">
+        {/* Right above the greeting, so it never covers it. `--w` is the dog's width; its glow
+            reaches w/4 past each side, so the bottom margin clears the greeting and the width
+            (about a third of the room below the header, ~vh/2 - 250px) keeps the glow below it.
+            Hidden when even the smallest dog would not fit. */}
+        {mascot && (
+          <div className="absolute bottom-full left-1/2 mb-[calc(var(--w)/4_+_1rem)] w-[var(--w)] -translate-x-1/2 [--w:clamp(3rem,calc(33vh_-_165px),8rem)] [@media(max-height:40rem)]:hidden">
+            {mascot}
+          </div>
+        )}
         <div
           className={`flex ${textHasMultipleLines ? 'flex-col' : 'flex-col md:flex-row'} items-center justify-center gap-2`}
         >
-          <div className={`relative size-10 justify-center ${textHasMultipleLines ? 'mb-2' : ''}`}>
-            {isTemporary ? (
-              <div className={containerClassName}>
-                <HatGlasses className="h-2/3 w-2/3 text-text-primary" aria-hidden="true" />
-              </div>
-            ) : (
-              <ConvoIcon
-                agentsMap={agentsMap}
-                assistantMap={assistantMap}
-                conversation={conversation}
-                endpointsConfig={endpointsConfig}
-                containerClassName={containerClassName}
-                context="landing"
-                className="h-2/3 w-2/3 text-text-primary"
-                size={41}
-              />
-            )}
-            {startupConfig?.showBirthdayIcon && (
-              <TooltipAnchor
-                className="absolute bottom-[27px] right-2"
-                description={localize('com_ui_happy_birthday')}
-                aria-label={localize('com_ui_happy_birthday')}
-              >
-                <BirthdayIcon />
-              </TooltipAnchor>
-            )}
-          </div>
+          {(isTemporary || startupConfig?.showBirthdayIcon) && (
+            <div
+              className={`relative size-10 justify-center ${textHasMultipleLines ? 'mb-2' : ''}`}
+            >
+              {isTemporary && (
+                <div className={containerClassName}>
+                  <HatGlasses className="h-2/3 w-2/3 text-text-primary" aria-hidden="true" />
+                </div>
+              )}
+              {startupConfig?.showBirthdayIcon && (
+                <TooltipAnchor
+                  className="absolute bottom-[27px] right-2"
+                  description={localize('com_ui_happy_birthday')}
+                  aria-label={localize('com_ui_happy_birthday')}
+                >
+                  <BirthdayIcon />
+                </TooltipAnchor>
+              )}
+            </div>
+          )}
           {((isAgent || isAssistant) && name) || name ? (
             <div className="flex flex-col items-center gap-0 p-2">
               <SplitText

@@ -34,11 +34,10 @@ function renderMascot(props: Props) {
         <Mascot {...next} />
       </Provider>,
     );
-  return { store, rerender, container: view.container };
+  return { store, rerender, container: view.container, unmount: view.unmount };
 }
 
 const getDog = () => screen.getByRole('button', { name: 'com_ui_mascot_pet' });
-const getHost = (container: HTMLElement) => container.querySelector('.mascot-host');
 
 describe('Mascot', () => {
   beforeEach(() => {
@@ -50,22 +49,34 @@ describe('Mascot', () => {
     jest.useRealTimers();
   });
 
-  it('floats centered while the conversation is empty', () => {
-    const { container } = renderMascot({ isLanding: true, isSubmitting: false });
+  it('starts neutral', () => {
+    renderMascot({ isSubmitting: false });
 
-    expect(getHost(container)).toHaveAttribute('data-placement', 'center');
     expect(getDog()).toHaveAttribute('data-expr', EXPRESSIONS.NEUTRAL);
   });
 
-  it('settles in the corner once the conversation has messages', () => {
-    const { container, rerender } = renderMascot({ isLanding: true, isSubmitting: false });
-    rerender({ isLanding: false, isSubmitting: false });
+  it('glides in from where the previous instance left (landing → chat)', () => {
+    const animate = jest.fn();
+    const rect = jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
+    Object.defineProperty(HTMLElement.prototype, 'animate', { configurable: true, value: animate });
 
-    expect(getHost(container)).toHaveAttribute('data-placement', 'corner');
+    rect.mockReturnValue({ left: 400, top: 100, width: 128 } as DOMRect);
+    const landing = renderMascot({ isSubmitting: false });
+    expect(animate).not.toHaveBeenCalled();
+    landing.unmount();
+
+    rect.mockReturnValue({ left: 16, top: 68, width: 44 } as DOMRect);
+    renderMascot({ isSubmitting: true });
+    const [keyframes] = animate.mock.calls[0];
+    expect(keyframes[0].transform).toBe(`translate(384px, 32px) scale(${128 / 44})`);
+    expect(keyframes[1].transform).toBe('none');
+
+    rect.mockRestore();
+    delete (HTMLElement.prototype as { animate?: unknown }).animate;
   });
 
   it('exposes an accessible name and hides the artwork from assistive tech', () => {
-    const { container } = renderMascot({ isLanding: true, isSubmitting: false });
+    const { container } = renderMascot({ isSubmitting: false });
 
     expect(getDog()).toBeInTheDocument();
     container.querySelectorAll('svg').forEach((svg) => {
@@ -74,12 +85,12 @@ describe('Mascot', () => {
   });
 
   it('thinks while a response is in flight, then talks and turns proud', () => {
-    const { rerender } = renderMascot({ isLanding: false, isSubmitting: false });
+    const { rerender } = renderMascot({ isSubmitting: false });
 
-    rerender({ isLanding: false, isSubmitting: true });
+    rerender({ isSubmitting: true });
     expect(getDog()).toHaveAttribute('data-expr', EXPRESSIONS.THINKING);
 
-    rerender({ isLanding: false, isSubmitting: false });
+    rerender({ isSubmitting: false });
     expect(getDog()).toHaveAttribute('data-expr', EXPRESSIONS.TALKING);
 
     act(() => {
@@ -94,7 +105,7 @@ describe('Mascot', () => {
   });
 
   it('is happy when petted and in love after a burst of pets', () => {
-    renderMascot({ isLanding: true, isSubmitting: false });
+    renderMascot({ isSubmitting: false });
 
     fireEvent.click(getDog());
     expect(getDog()).toHaveAttribute('data-expr', EXPRESSIONS.HAPPY);
@@ -106,7 +117,7 @@ describe('Mascot', () => {
   });
 
   it('listens while the composer is focused', () => {
-    renderMascot({ isLanding: true, isSubmitting: false });
+    renderMascot({ isSubmitting: false });
     const textarea = document.createElement('textarea');
     textarea.id = 'prompt-textarea';
     document.body.appendChild(textarea);
@@ -120,7 +131,7 @@ describe('Mascot', () => {
   });
 
   it('falls asleep when idle and wakes up surprised on activity', () => {
-    renderMascot({ isLanding: true, isSubmitting: false });
+    renderMascot({ isSubmitting: false });
 
     act(() => {
       jest.advanceTimersByTime(15_000);
@@ -134,7 +145,7 @@ describe('Mascot', () => {
   });
 
   it('plays reactions requested by other features', () => {
-    const { store } = renderMascot({ isLanding: false, isSubmitting: false });
+    const { store } = renderMascot({ isSubmitting: false });
 
     act(() => {
       store.set(reactionAtom, {
@@ -146,9 +157,9 @@ describe('Mascot', () => {
   });
 
   it('turns sad when the latest message fails', () => {
-    const { rerender } = renderMascot({ isLanding: false, isSubmitting: false });
+    const { rerender } = renderMascot({ isSubmitting: false });
 
-    rerender({ isLanding: false, isSubmitting: false, failedMessageId: 'm1' });
+    rerender({ isSubmitting: false, failedMessageId: 'm1' });
     expect(getDog()).toHaveAttribute('data-expr', EXPRESSIONS.SAD);
 
     act(() => {
@@ -158,17 +169,17 @@ describe('Mascot', () => {
   });
 
   it('falls in love instead of talking when the user says thanks', () => {
-    const { rerender } = renderMascot({ isLanding: false, isSubmitting: false });
+    const { rerender } = renderMascot({ isSubmitting: false });
 
-    rerender({ isLanding: false, isSubmitting: false, lastUserText: 'Thanks a lot!' });
-    rerender({ isLanding: false, isSubmitting: true, lastUserText: 'Thanks a lot!' });
-    rerender({ isLanding: false, isSubmitting: false, lastUserText: 'Thanks a lot!' });
+    rerender({ isSubmitting: false, lastUserText: 'Thanks a lot!' });
+    rerender({ isSubmitting: true, lastUserText: 'Thanks a lot!' });
+    rerender({ isSubmitting: false, lastUserText: 'Thanks a lot!' });
 
     expect(getDog()).toHaveAttribute('data-expr', EXPRESSIONS.LOVE);
   });
 
   it('is curious while a conversation starter is hovered', () => {
-    const { store } = renderMascot({ isLanding: true, isSubmitting: false });
+    const { store } = renderMascot({ isSubmitting: false });
 
     act(() => store.set(curiousAtom, true));
     expect(getDog()).toHaveAttribute('data-expr', EXPRESSIONS.CURIOUS);
@@ -178,7 +189,7 @@ describe('Mascot', () => {
   });
 
   it('reacts to message ratings', () => {
-    const { store } = renderMascot({ isLanding: false, isSubmitting: false });
+    const { store } = renderMascot({ isSubmitting: false });
 
     act(() => store.set(reactionAtom, { id: 1, steps: RATING_REACTIONS.thumbsUp }));
     expect(getDog()).toHaveAttribute('data-expr', EXPRESSIONS.HAPPY);
@@ -186,7 +197,7 @@ describe('Mascot', () => {
 
   it('blinks at random intervals', () => {
     jest.spyOn(Math, 'random').mockReturnValue(0);
-    renderMascot({ isLanding: true, isSubmitting: false });
+    renderMascot({ isSubmitting: false });
 
     act(() => {
       jest.advanceTimersByTime(3_000);
@@ -204,7 +215,7 @@ describe('Mascot', () => {
     beforeEach(() => mockMatchMedia(true));
 
     it('never blinks and does not track the pointer', () => {
-      renderMascot({ isLanding: true, isSubmitting: false });
+      renderMascot({ isSubmitting: false });
 
       act(() => {
         jest.advanceTimersByTime(10_000);

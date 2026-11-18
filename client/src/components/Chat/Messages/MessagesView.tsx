@@ -3,11 +3,13 @@ import { useAtomValue } from 'jotai';
 import { useRecoilValue } from 'recoil';
 import { Constants } from 'librechat-data-provider';
 import type { TMessage } from 'librechat-data-provider';
+import type { ReactNode } from 'react';
 import { useScreenshot, useMessageScrolling, useScrollbarGutter, useLocalize } from '~/hooks';
 import { MessagesViewProvider, useChatContext, useFileMapContext } from '~/Providers';
 import { RowMountProvider, useProgressiveRowMount } from '~/hooks/Messages';
 import { useChatSurface } from '~/components/Chat/Subagents/surface';
 import useThreadRows from '~/hooks/Messages/useThreadRows';
+import { getMessageRowWidthClass } from './ui/MessageRow';
 import { steerOverlayHeightFamily } from '~/store/steer';
 import { autoScrollAtom } from '~/store/autoScroll';
 import { FLAT_THREAD, ThreadList } from './Thread';
@@ -19,13 +21,13 @@ import MessageNav from './MessageNav';
 import { cn } from '~/utils';
 import store from '~/store';
 
-function MessagesViewContent({
-  messagesTree: _messagesTree,
-  messages,
-}: {
+type MessagesViewProps = {
   messagesTree?: TMessage[] | null;
   messages?: TMessage[] | null;
-}) {
+  mascot?: ReactNode;
+};
+
+function MessagesViewContent({ messagesTree: _messagesTree, messages, mascot }: MessagesViewProps) {
   const localize = useLocalize();
   const fontSize = useAtomValue(fontSizeAtom);
   const { screenshotTargetRef } = useScreenshot();
@@ -90,13 +92,20 @@ function MessagesViewContent({
           >
             <div
               ref={contentRef}
-              className="flex flex-col pb-9 pl-12 pt-14 lg:px-12"
+              className="flex flex-col pb-9 pl-20 pt-14 lg:px-20"
               style={
                 steerOverlayHeight > 0
                   ? { paddingBottom: `calc(2.25rem + ${steerOverlayHeight}px)` }
                   : undefined
               }
             >
+              {/* Mascot centered in the `pl-20` gutter beside the message column, glow included:
+                  level with the first message, then stuck under the header while scrolling. */}
+              {mascot && (
+                <div className={cn('sticky top-14 mx-auto h-0 px-4', getMessageRowWidthClass())}>
+                  <div className="-ml-[3.875rem] mt-3 w-11">{mascot}</div>
+                </div>
+              )}
               {(_messagesTree && _messagesTree.length == 0) || _messagesTree === null ? (
                 <div
                   className={cn(
@@ -159,16 +168,10 @@ function MessagesViewContent({
   );
 }
 
-export default function MessagesView({
-  messagesTree,
-  messages,
-}: {
-  messagesTree?: TMessage[] | null;
-  messages?: TMessage[] | null;
-}) {
+export default function MessagesView(props: MessagesViewProps) {
   return (
     <MessagesViewProvider>
-      <MessagesViewContent messagesTree={messagesTree} messages={messages} />
+      <MessagesViewContent {...props} />
     </MessagesViewProvider>
   );
 }

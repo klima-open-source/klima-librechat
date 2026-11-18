@@ -1,17 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useExpression } from './hooks';
 import { useLocalize } from '~/hooks';
 import { Dog } from './Dog';
-import './host.css';
 
-/** Greeting block the centered dog sits above (see `Landing`). */
-const ANCHOR_SELECTOR = '[data-mascot-anchor]';
-const LANDING_GAP_PX = 8;
-const MIN_TOP_PX = 8;
+const GLIDE_MS = 650;
+/** Only glide in when the previous instance left this recently (landing → chat). */
+const GLIDE_WINDOW_MS = 600;
+
+/** Where the last instance was when it unmounted, so the next one can glide in from there. */
+let lastSeen: { rect: DOMRect; at: number } | null = null;
 
 interface MascotProps {
-  /** Empty conversation: the dog floats centered. Otherwise it settles in the corner. */
-  isLanding: boolean;
   /** A response is in flight: the dog thinks, then reacts when it lands. */
   isSubmitting: boolean;
   /** Id of the latest message when it ended in an error: the dog gets sad. */
@@ -21,51 +20,52 @@ interface MascotProps {
 }
 
 /**
- * Lives inside a `relative` chat container. The wrapper ignores pointer events so it never
- * blocks the chat; only the dog itself is interactive.
+ * The parent decides where she sits (above the greeting, or in the gutter beside the first
+ * message). Moving between them she glides from her previous spot, behind the chat content
+ * (`zIndex: -1` inside the `isolate`d chat), so the messages appearing then stay readable.
  */
-export default function Mascot({
-  isLanding,
-  isSubmitting,
-  failedMessageId,
-  lastUserText,
-}: MascotProps) {
+export default function Mascot({ isSubmitting, failedMessageId, lastUserText }: MascotProps) {
   const localize = useLocalize();
   const { expression, pet } = useExpression(isSubmitting, { failedMessageId, lastUserText });
-  const hostRef = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const host = hostRef.current;
-    const container = host?.parentElement;
-    const anchor = container?.querySelector<HTMLElement>(ANCHOR_SELECTOR);
-    if (!host || !container || !anchor || !isLanding) {
-      host?.style.removeProperty('--mascot-landing-top');
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) {
       return;
     }
-
-    const place = () => {
-      const top =
-        anchor.getBoundingClientRect().top -
-        container.getBoundingClientRect().top -
-        host.offsetHeight -
-        LANDING_GAP_PX;
-      host.style.setProperty('--mascot-landing-top', `${Math.max(top, MIN_TOP_PX)}px`);
+    const from = lastSeen;
+    const to = el.getBoundingClientRect();
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (
+      from &&
+      performance.now() - from.at < GLIDE_WINDOW_MS &&
+      from.rect.width > 0 &&
+      to.width > 0 &&
+      !reduceMotion &&
+      typeof el.animate === 'function'
+    ) {
+      const start = `translate(${from.rect.left - to.left}px, ${from.rect.top - to.top}px) scale(${from.rect.width / to.width})`;
+      el.animate(
+        [
+          { transform: start, zIndex: -1 },
+          { transform: 'none', zIndex: -1 },
+        ],
+        { duration: GLIDE_MS, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+      );
+    }
+    return () => {
+      lastSeen = { rect: el.getBoundingClientRect(), at: performance.now() };
     };
-
-    place();
-    const observer = new ResizeObserver(place);
-    observer.observe(anchor);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [isLanding]);
+  }, []);
 
   return (
-    <div ref={hostRef} className="mascot-host" data-placement={isLanding ? 'center' : 'corner'}>
+    <div ref={ref} className="relative origin-top-left">
       <Dog
         expression={expression}
         label={localize('com_ui_mascot_pet')}
         onPet={pet}
-        className="mascot-host__dog"
+        className="w-full"
       />
     </div>
   );
